@@ -1,0 +1,2447 @@
+openapi: 3.0.3
+info:
+  title: MemNexus Core API
+  version: 1.0.0
+  description: Core API service for MemNexus - single service boundary for all data access
+  contact:
+    name: MemNexus Team
+  generatedAt: '2025-11-16T21:09:59.505Z'
+  environment: development
+servers:
+  - url: http://localhost:3000
+    description: Development
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API_KEY
+      description: >-
+        API key authentication using Bearer token format. Format:
+        cmk_live_<id>.<secret>. Example: Authorization: Bearer cmk_live_xxx.yyy
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: Resource not found
+      required:
+        - error
+    Pagination:
+      type: object
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          description: Maximum number of items per page
+          example: 20
+        offset:
+          type: integer
+          minimum: 0
+          description: Number of items to skip
+          example: 0
+        count:
+          type: integer
+          minimum: 0
+          description: Total number of items
+          example: 42
+      required:
+        - limit
+        - offset
+        - count
+    Memory:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique memory identifier
+          example: 123e4567-e89b-12d3-a456-426614174000
+        content:
+          type: string
+          description: Memory content
+          example: I learned about Zod schema validation today
+        memoryType:
+          type: string
+          enum:
+            - episodic
+            - semantic
+            - procedural
+          description: Type of memory
+          example: episodic
+        context:
+          type: string
+          description: Context or domain of the memory
+          example: work
+        topics:
+          type: array
+          items:
+            type: string
+          description: Associated topics
+          example:
+            - typescript
+            - validation
+        timestamp:
+          type: string
+          format: date-time
+          description: System ingestion timestamp (when the system learned about this)
+          example: '2024-01-01T00:00:00Z'
+        eventTime:
+          type: string
+          format: date-time
+          description: Event time (when the event actually occurred in reality)
+          example: '2024-01-01T00:00:00Z'
+        validFrom:
+          type: string
+          format: date-time
+          description: Validity start time (when this fact becomes valid)
+          example: '2024-01-01T00:00:00Z'
+        validTo:
+          type: string
+          nullable: true
+          format: date-time
+          description: Validity end time (when this fact expires, null means never expires)
+          example: '2024-12-31T23:59:59Z'
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2024-01-01T00:00:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: '2024-01-01T00:00:00Z'
+      required:
+        - id
+        - content
+        - memoryType
+        - createdAt
+        - updatedAt
+    CreateMemoryRequest:
+      type: object
+      properties:
+        conversationId:
+          type: string
+          minLength: 1
+          description: >-
+            Conversation ID - use "NEW" to create a new conversation or provide
+            existing conversation ID
+          example: conv_abc123
+        content:
+          type: string
+          minLength: 1
+          description: Memory content
+          example: I learned about Zod schema validation today
+        memoryType:
+          type: string
+          enum:
+            - episodic
+            - semantic
+            - procedural
+          description: Type of memory
+          example: episodic
+        role:
+          type: string
+          enum:
+            - user
+            - assistant
+            - system
+          description: Role (MCP protocol compatibility)
+          example: user
+        context:
+          type: string
+          description: Context or domain
+          example: work
+        topics:
+          type: array
+          items:
+            type: string
+          description: Associated topics
+          example:
+            - typescript
+            - validation
+        eventTime:
+          type: string
+          format: date-time
+          description: >-
+            Event time (when the event actually occurred in reality, ISO 8601
+            format)
+          example: '2024-01-15T10:00:00Z'
+        validFrom:
+          type: string
+          format: date-time
+          description: Validity start time (when this fact becomes valid, ISO 8601 format)
+          example: '2024-01-15T00:00:00Z'
+        validTo:
+          type: string
+          format: date-time
+          description: >-
+            Validity end time (when this fact expires, ISO 8601 format, omit for
+            never expires)
+          example: '2024-12-31T23:59:59Z'
+      required:
+        - conversationId
+        - content
+    UpdateMemoryRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+          description: Updated memory content
+        memoryType:
+          type: string
+          enum:
+            - episodic
+            - semantic
+            - procedural
+          description: Updated memory type
+        context:
+          type: string
+          description: Updated context or domain
+        topics:
+          type: array
+          items:
+            type: string
+          description: Updated topics
+    CreateMemoryResponseMeta:
+      type: object
+      properties:
+        conversationId:
+          type: string
+          description: Conversation ID (actual ID if "NEW" was provided)
+          example: conv_abc123
+        sessionId:
+          type: string
+          description: Auto-assigned session ID based on 90-minute gap detection
+          example: session_xyz789
+        sessionCreated:
+          type: boolean
+          description: >-
+            Whether a new session was created (true) or existing session was
+            reused (false)
+          example: false
+        conversationCreated:
+          type: boolean
+          description: >-
+            Whether a new conversation was created (true if conversationId was
+            "NEW")
+          example: false
+      required:
+        - conversationId
+        - sessionId
+        - sessionCreated
+        - conversationCreated
+      description: Metadata about the memory creation context
+    CreateMemoryResponse:
+      type: object
+      properties:
+        data:
+          allOf:
+            - $ref: '#/components/schemas/Memory'
+            - description: The created memory object
+        meta:
+          $ref: '#/components/schemas/CreateMemoryResponseMeta'
+      required:
+        - data
+        - meta
+    GraphRAGQueryRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          minLength: 1
+          description: GraphRAG query string
+          example: What did I learn about machine learning?
+        maxDepth:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 2
+          description: 'Maximum graph traversal depth (alias: depth)'
+          example: 2
+        depth:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Graph traversal depth (deprecated, use maxDepth)
+          example: 2
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+          description: Maximum number of results to return
+          example: 20
+        includeRelationships:
+          type: boolean
+          default: true
+          description: Include relationship data in response
+          example: true
+      required:
+        - query
+    GraphRAGQueryResponse:
+      type: object
+      properties:
+        queryId:
+          type: string
+          description: Unique identifier for this query execution
+          example: 123e4567-e89b-12d3-a456-426614174000
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              memory:
+                $ref: '#/components/schemas/Memory'
+              score:
+                type: number
+                description: Relevance score from full-text search
+                example: 0.95
+              topics:
+                type: array
+                items:
+                  type: object
+                  additionalProperties:
+                    nullable: true
+                description: Topics associated with this memory
+              entities:
+                type: array
+                items:
+                  type: object
+                  additionalProperties:
+                    nullable: true
+                description: Entities mentioned in this memory
+              relatedMemories:
+                type: array
+                items:
+                  type: object
+                  additionalProperties:
+                    nullable: true
+                description: Related memories through shared topics
+            required:
+              - memory
+              - score
+              - topics
+              - entities
+              - relatedMemories
+          description: Array of query results with graph context
+        metadata:
+          type: object
+          properties:
+            query:
+              type: string
+              description: Original query string
+              example: What did I learn about machine learning?
+            depth:
+              type: integer
+              description: Graph traversal depth used
+              example: 2
+            limit:
+              type: integer
+              description: Maximum number of results returned
+              example: 20
+            timestamp:
+              type: string
+              format: date-time
+              description: Query execution timestamp
+              example: '2024-01-01T00:00:00Z'
+          required:
+            - query
+            - depth
+            - limit
+            - timestamp
+          description: Query execution metadata
+      required:
+        - queryId
+        - results
+        - metadata
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique conversation identifier
+          example: 123e4567-e89b-12d3-a456-426614174000
+        title:
+          type: string
+          description: Conversation title
+          example: Discussion about AI
+        summary:
+          type: string
+          nullable: true
+          description: Conversation summary
+          example: A conversation about artificial intelligence and machine learning
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2024-01-15T10:30:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: '2024-01-15T14:45:00Z'
+      required:
+        - id
+        - title
+        - summary
+        - createdAt
+        - updatedAt
+    CreateConversationRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          description: Conversation title
+          example: New Discussion
+        summary:
+          type: string
+          description: Optional conversation summary
+          example: A new conversation about...
+      required:
+        - title
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique API key identifier
+          example: 123e4567-e89b-12d3-a456-426614174000
+        label:
+          type: string
+          description: Human-readable label for the API key
+          example: Production API Key
+        prefix:
+          type: string
+          description: API key prefix for identification
+          example: cmk_live_abc123
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2024-01-15T10:30:00Z'
+        expiresAt:
+          type: string
+          nullable: true
+          format: date-time
+          description: Expiration timestamp (null if never expires)
+          example: '2025-01-15T10:30:00Z'
+        lastUsedAt:
+          type: string
+          nullable: true
+          format: date-time
+          description: Last usage timestamp (null if never used)
+          example: '2024-01-20T15:45:00Z'
+      required:
+        - id
+        - label
+        - prefix
+        - createdAt
+        - expiresAt
+        - lastUsedAt
+    Topic:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Topic name
+          example: Machine Learning
+        count:
+          type: integer
+          minimum: 0
+          description: Number of memories associated with this topic
+          example: 15
+      required:
+        - name
+        - count
+    Pattern:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique pattern identifier
+          example: 123e4567-e89b-12d3-a456-426614174000
+        type:
+          type: string
+          description: Pattern type
+          example: behavioral
+        description:
+          type: string
+          description: Pattern description
+          example: User frequently asks about machine learning topics
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence score (0-1)
+          example: 0.85
+      required:
+        - id
+        - type
+        - description
+        - confidence
+    ServiceCheck:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - up
+            - down
+          description: Service status
+          example: up
+        responseTime:
+          type: number
+          description: Response time in milliseconds
+          example: 42
+      required:
+        - status
+    HealthCheck:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+          description: Overall system health status
+          example: healthy
+        timestamp:
+          type: string
+          format: date-time
+          description: Health check timestamp
+          example: '2024-01-15T10:30:00Z'
+        version:
+          type: string
+          description: API version
+          example: 1.0.0
+        uptime:
+          type: number
+          description: System uptime in seconds
+          example: 86400
+        checks:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ServiceCheck'
+          description: Individual service health checks
+          example:
+            database:
+              status: up
+              responseTime: 15
+            cache:
+              status: up
+              responseTime: 5
+      required:
+        - status
+        - timestamp
+        - version
+        - uptime
+        - checks
+    SearchRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          minLength: 1
+          description: Search query
+          example: machine learning concepts
+        mode:
+          type: string
+          enum:
+            - unified
+            - content
+            - facts
+          description: Search mode (defaults to unified)
+          example: unified
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Maximum number of results (defaults to 20)
+          example: 20
+        offset:
+          type: integer
+          minimum: 0
+          description: Offset for pagination (defaults to 0)
+          example: 0
+        asOfTime:
+          type: string
+          format: date-time
+          description: >-
+            Point-in-time query: show what the system knew at this time (ISO
+            8601 format)
+          example: '2024-01-15T00:00:00Z'
+        validAtTime:
+          type: string
+          format: date-time
+          description: >-
+            Validity query: show facts that were valid at this time (ISO 8601
+            format)
+          example: '2024-06-15T00:00:00Z'
+        eventTimeFrom:
+          type: string
+          format: date-time
+          description: Event time range start (ISO 8601 format)
+          example: '2024-01-01T00:00:00Z'
+        eventTimeTo:
+          type: string
+          format: date-time
+          description: Event time range end (ISO 8601 format)
+          example: '2024-01-31T23:59:59Z'
+        ingestionTimeFrom:
+          type: string
+          format: date-time
+          description: Ingestion time range start (ISO 8601 format)
+          example: '2024-01-01T00:00:00Z'
+        ingestionTimeTo:
+          type: string
+          format: date-time
+          description: Ingestion time range end (ISO 8601 format)
+          example: '2024-01-31T23:59:59Z'
+        includeExpired:
+          type: boolean
+          description: Include expired facts (defaults to false)
+          example: false
+        temporalMode:
+          type: string
+          enum:
+            - current
+            - historical
+            - evolution
+          description: >-
+            Temporal query mode: 'current' (only valid now), 'historical' (as of
+            a point in time), 'evolution' (chronological)
+          example: current
+      required:
+        - query
+    SearchResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Memory'
+          description: Search results
+        count:
+          type: integer
+          minimum: 0
+          description: Total number of results
+          example: 5
+        metadata:
+          type: object
+          additionalProperties:
+            nullable: true
+          description: Search metadata
+          example:
+            mode: unified
+            executionTime: 125
+      required:
+        - data
+        - count
+        - metadata
+    Fact:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the fact
+          example: fact_01H5YQXGBJYZT1J5X5V3SAZWA2
+        userId:
+          type: string
+          description: User ID who owns this fact
+          example: user_01H5YQXGBJYZT1J5X5V3SAZWA2
+        name:
+          type: string
+          description: Fact name/label
+          example: Machine Learning
+        type:
+          type: string
+          description: Entity type
+          example: concept
+        description:
+          type: string
+          nullable: true
+          description: Fact description
+          example: A field of artificial intelligence
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence score (0-1)
+          example: 0.95
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2024-01-15T10:30:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: '2024-01-15T10:30:00Z'
+      required:
+        - id
+        - userId
+        - name
+        - type
+        - createdAt
+        - updatedAt
+    CreateFactRequest:
+      type: object
+      properties:
+        subject:
+          type: string
+          minLength: 1
+          description: Fact subject (entity name)
+          example: Machine Learning
+        predicate:
+          type: string
+          minLength: 1
+          description: Relationship type
+          example: is_a
+        object:
+          type: string
+          minLength: 1
+          description: Fact object (related entity)
+          example: Artificial Intelligence
+      required:
+        - subject
+        - predicate
+        - object
+    UpdateFactRequest:
+      type: object
+      properties:
+        subject:
+          type: string
+          minLength: 1
+          description: Fact subject (entity name)
+          example: Machine Learning
+        predicate:
+          type: string
+          minLength: 1
+          description: Relationship type
+          example: is_a
+        object:
+          type: string
+          minLength: 1
+          description: Fact object (related entity)
+          example: Artificial Intelligence
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence score (0-1)
+          example: 0.95
+    FactSearchRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          minLength: 1
+          description: Search query string
+          example: machine learning
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+          description: Maximum number of results to return
+          example: 20
+      required:
+        - query
+    Artifact:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the artifact
+          example: artifact_01H5YQXGBJYZT1J5X5V3SAZWA2
+        userId:
+          type: string
+          description: User ID who owns this artifact
+          example: user_01H5YQXGBJYZT1J5X5V3SAZWA2
+        content:
+          type: string
+          description: Artifact content
+          example: |-
+            # Meeting Notes
+
+            Discussed project timeline...
+        type:
+          type: string
+          description: Artifact type (e.g., note, document, code)
+          example: note
+        name:
+          type: string
+          nullable: true
+          description: Artifact name
+          example: Meeting Notes - Q1 Planning
+        description:
+          type: string
+          nullable: true
+          description: Artifact description
+          example: Notes from Q1 planning meeting
+        memoryId:
+          type: string
+          nullable: true
+          description: Associated memory ID
+          example: mem_01H5YQXGBJYZT1J5X5V3SAZWA2
+        conversationId:
+          type: string
+          nullable: true
+          description: Associated conversation ID
+          example: conv_01H5YQXGBJYZT1J5X5V3SAZWA2
+        metadata:
+          type: object
+          additionalProperties:
+            nullable: true
+          description: Additional metadata
+          example:
+            format: markdown
+            wordCount: 150
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2024-01-15T10:30:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: '2024-01-15T10:30:00Z'
+      required:
+        - id
+        - userId
+        - content
+        - type
+        - createdAt
+        - updatedAt
+    CreateArtifactRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+          description: Artifact content
+          example: |-
+            # Meeting Notes
+
+            Discussed project timeline...
+        type:
+          type: string
+          minLength: 1
+          description: Artifact type (e.g., note, document, code)
+          example: note
+        name:
+          type: string
+          description: Artifact name
+          example: Meeting Notes - Q1 Planning
+        description:
+          type: string
+          description: Artifact description
+          example: Notes from Q1 planning meeting
+        memoryId:
+          type: string
+          description: Associated memory ID
+          example: mem_01H5YQXGBJYZT1J5X5V3SAZWA2
+        conversationId:
+          type: string
+          description: Associated conversation ID
+          example: conv_01H5YQXGBJYZT1J5X5V3SAZWA2
+        metadata:
+          type: object
+          additionalProperties:
+            nullable: true
+          description: Additional metadata
+          example:
+            format: markdown
+            wordCount: 150
+      required:
+        - content
+        - type
+    UpdateArtifactRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+          description: Artifact content
+          example: |-
+            # Meeting Notes
+
+            Discussed project timeline...
+        type:
+          type: string
+          minLength: 1
+          description: Artifact type (e.g., note, document, code)
+          example: note
+        name:
+          type: string
+          description: Artifact name
+          example: Meeting Notes - Q1 Planning
+        description:
+          type: string
+          description: Artifact description
+          example: Notes from Q1 planning meeting
+        metadata:
+          type: object
+          additionalProperties:
+            nullable: true
+          description: Additional metadata
+          example:
+            format: markdown
+            wordCount: 150
+    Community:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the community
+          example: community_01H5YQXGBJYZT1J5X5V3SAZWA2
+        name:
+          type: string
+          description: Community name
+          example: Machine Learning Community
+        description:
+          type: string
+          nullable: true
+          description: Community description
+          example: A community focused on machine learning topics
+        topicCount:
+          type: integer
+          minimum: 0
+          description: Number of topics in this community
+          example: 15
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2024-01-15T10:30:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: '2024-01-15T10:30:00Z'
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+    MergeCommunitiesRequest:
+      type: object
+      properties:
+        sourceCommunityId:
+          type: string
+          minLength: 1
+          description: Source community ID to merge from
+          example: community_01H5YQXGBJYZT1J5X5V3SAZWA2
+        targetCommunityId:
+          type: string
+          minLength: 1
+          description: Target community ID to merge into
+          example: community_01H5YQXGBJYZT1J5X5V3SAZWA3
+      required:
+        - sourceCommunityId
+        - targetCommunityId
+  responses:
+    UnauthorizedError:
+      description: Authentication required or invalid API key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Invalid or missing API key
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Resource not found
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: 'Missing required field: content'
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Internal server error
+security:
+  - ApiKeyAuth: []
+paths:
+  /api/apikeys/debug-user:
+    get:
+      summary: Get user information for current API key
+      operationId: debugUser
+      description: >-
+        Debug endpoint to retrieve user ID and authentication method from the
+        current API key
+      tags:
+        - API Keys
+      responses:
+        '200':
+          description: OK
+  /api/apikeys:
+    get:
+      summary: List API keys
+      operationId: listApiKeys
+      description: List all API keys for the authenticated user
+      tags:
+        - API Keys
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create API key
+      operationId: createApiKey
+      description: Create a new API key for the authenticated user
+      tags:
+        - API Keys
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+                expiresAt:
+                  type: string
+                  format: date-time
+      responses:
+        '201':
+          description: Created
+  /api/apikeys/{id}:
+    delete:
+      summary: Delete API key
+      operationId: deleteApiKey
+      description: Delete (revoke) an API key by its ID
+      tags:
+        - API Keys
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The API key ID
+      responses:
+        '204':
+          description: No Content
+  /api/artifacts:
+    post:
+      summary: Create artifact
+      operationId: createArtifact
+      description: Create a new artifact for the authenticated user
+      tags:
+        - Artifacts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateArtifactRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Artifact'
+    get:
+      summary: List artifacts
+      operationId: listArtifacts
+      description: List all artifacts for the authenticated user with optional filters
+      x-endpoint-status: experimental
+      tags:
+        - Artifacts
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of artifacts to return
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+          description: Number of artifacts to skip
+        - in: query
+          name: memoryId
+          schema:
+            type: string
+          description: Filter by memory ID
+        - in: query
+          name: conversationId
+          schema:
+            type: string
+          description: Filter by conversation ID
+        - in: query
+          name: type
+          schema:
+            type: string
+          description: Filter by artifact type
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Artifact'
+                  count:
+                    type: integer
+  /api/artifacts/{id}:
+    get:
+      summary: Get artifact by ID
+      operationId: getArtifactById
+      description: Retrieve a specific artifact by its ID
+      tags:
+        - Artifacts
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The artifact ID
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Artifact'
+    delete:
+      summary: Delete artifact
+      operationId: deleteArtifact
+      description: Delete an artifact by its ID
+      tags:
+        - Artifacts
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The artifact ID
+      responses:
+        '204':
+          description: No Content
+    patch:
+      summary: Update artifact
+      operationId: updateArtifact
+      description: Update an existing artifact with partial data
+      tags:
+        - Artifacts
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The artifact ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateArtifactRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Artifact'
+  /api/conversations:
+    get:
+      summary: List conversations
+      operationId: listConversations
+      description: List all conversations for the authenticated user with pagination
+      tags:
+        - Conversations
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of conversations to return
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+          description: Number of conversations to skip
+      responses:
+        '200':
+          description: OK
+  /api/conversations/{conversationId}:
+    get:
+      summary: Get conversation summary
+      operationId: getConversationSummary
+      description: Retrieve a conversation summary by its ID
+      tags:
+        - Conversations
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema:
+            type: string
+          description: The conversation ID
+      responses:
+        '200':
+          description: OK
+  /api/conversations/{conversationId}/timeline:
+    get:
+      summary: Get conversation timeline
+      operationId: getConversationTimeline
+      description: Get all memories in a conversation in chronological order
+      tags:
+        - Conversations
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema:
+            type: string
+          description: The conversation ID
+      responses:
+        '200':
+          description: OK
+  /api/conversations/search:
+    post:
+      summary: Search conversations
+      operationId: searchConversations
+      description: Search conversations by query string
+      tags:
+        - Conversations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                limit:
+                  type: integer
+                  default: 20
+      responses:
+        '200':
+          description: OK
+  /api/conversations/by-topic:
+    post:
+      summary: Find conversations by topic
+      operationId: findConversationsByTopic
+      description: Find conversations that contain a specific topic
+      tags:
+        - Conversations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - topicId
+              properties:
+                topicId:
+                  type: string
+                limit:
+                  type: integer
+                  default: 20
+      responses:
+        '200':
+          description: OK
+  /api/facts:
+    get:
+      summary: List facts
+      operationId: listFacts
+      description: List all facts for the authenticated user
+      tags:
+        - Facts
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of facts to return
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+          description: Number of facts to skip
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Fact'
+                  count:
+                    type: integer
+    post:
+      summary: Create fact
+      operationId: createFact
+      description: Create a new semantic fact
+      tags:
+        - Facts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFactRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Fact'
+  /api/facts/{id}:
+    get:
+      summary: Get fact by ID
+      operationId: getFactById
+      description: Retrieve a specific fact by its ID
+      tags:
+        - Facts
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The fact ID
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Fact'
+    put:
+      summary: Update fact
+      operationId: updateFact
+      description: Update an existing fact completely
+      tags:
+        - Facts
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The fact ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFactRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Fact'
+    delete:
+      summary: Delete fact
+      operationId: deleteFact
+      description: Delete a fact by its ID
+      tags:
+        - Facts
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The fact ID
+      responses:
+        '204':
+          description: No Content
+  /api/facts/search:
+    post:
+      summary: Search facts
+      operationId: searchFacts
+      description: Search semantic facts by query string
+      tags:
+        - Facts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FactSearchRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Fact'
+                  count:
+                    type: integer
+                    description: Total number of results
+                  metadata:
+                    type: object
+                    properties:
+                      query:
+                        type: string
+                        description: The search query that was executed
+                    description: Search metadata
+  /api/graphrag/explain:
+    get:
+      summary: Explain a GraphRAG query
+      operationId: explainGraphRAGQuery
+      description: Get explanation for a previously executed GraphRAG query result
+      x-endpoint-status: experimental
+      tags:
+        - GraphRAG
+      parameters:
+        - in: query
+          name: queryId
+          required: true
+          schema:
+            type: string
+          description: The query ID to explain
+      responses:
+        '200':
+          description: OK
+  /api/graphrag/query-communities:
+    post:
+      summary: Query communities
+      operationId: queryCommunities
+      description: Query communities for relevant information using semantic search
+      tags:
+        - GraphRAG
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                limit:
+                  type: integer
+      responses:
+        '200':
+          description: OK
+  /api/graphrag/query:
+    post:
+      summary: Execute a GraphRAG query
+      operationId: executeGraphRAGQuery
+      description: Execute a graph-based retrieval augmented generation query
+      tags:
+        - GraphRAG
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GraphRAGQueryRequest'
+      responses:
+        '200':
+          description: GraphRAG query results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/GraphRAGQueryResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /health:
+    get:
+      summary: Health check endpoint
+      operationId: healthCheck
+      description: Returns the health status of the API service
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'
+  /api/memories/{id}:
+    get:
+      summary: Get memory by ID
+      operationId: getMemoryById
+      description: Retrieve a specific memory by its ID
+      tags:
+        - Memories
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The memory ID
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Delete memory
+      operationId: deleteMemory
+      description: Delete a memory by its ID
+      tags:
+        - Memories
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The memory ID
+      responses:
+        '204':
+          description: No Content
+    put:
+      summary: Update a memory
+      operationId: updateMemory
+      description: Update an existing memory for the authenticated user
+      tags:
+        - Memories
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Memory ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemoryRequest'
+      responses:
+        '200':
+          description: Memory updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Memory'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/memories:
+    get:
+      summary: List memories
+      operationId: listMemories
+      description: List all memories for the authenticated user with pagination
+      tags:
+        - Memories
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Maximum number of memories to return
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of memories to skip
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: Page number (alternative to offset)
+      responses:
+        '200':
+          description: List of memories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Memory'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Create a memory
+      operationId: createMemory
+      description: >
+        Create a new memory for the authenticated user.
+
+
+        **Conversation Management:**
+
+        - Use `conversationId: "NEW"` to create a new conversation automatically
+
+        - Provide an existing conversation ID to add to that conversation
+
+
+        **Session Management:**
+
+        - Sessions are automatically assigned based on 90-minute gap detection
+
+        - If the last memory in the conversation was within 90 minutes, the same
+        session is reused
+
+        - If the gap exceeds 90 minutes, a new session is created
+
+
+        **Response:**
+
+        - Returns the created memory in `data` field
+
+        - Returns session/conversation metadata in `meta` field
+      tags:
+        - Memories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMemoryRequest'
+      responses:
+        '201':
+          description: Memory created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateMemoryResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Conversation not found or does not belong to user
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/memories/search:
+    post:
+      summary: Search memories
+      operationId: searchMemories
+      description: >-
+        Search memories by content with different modes (unified, content,
+        facts)
+      tags:
+        - Memories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/openapi.json:
+    get:
+      summary: Get OpenAPI specification
+      operationId: getOpenApiSpec
+      description: >-
+        Returns the OpenAPI 3.x specification for the entire API. This endpoint
+        is used by CI/CD to sync the API Gateway.
+      tags:
+        - System
+      security: []
+      parameters:
+        - in: query
+          name: noCache
+          schema:
+            type: string
+            enum:
+              - '1'
+              - 'true'
+          description: Bypass cache and regenerate specification
+      responses:
+        '200':
+          description: OpenAPI specification
+          content:
+            application/json:
+              schema:
+                type: object
+                description: OpenAPI 3.x specification object
+        '403':
+          description: Access denied (production only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Failed to generate specification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/patterns:
+    get:
+      summary: List patterns
+      operationId: listPatterns
+      description: List all patterns for the authenticated user
+      tags:
+        - Patterns
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of patterns to return
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+          description: Number of patterns to skip
+      responses:
+        '200':
+          description: OK
+  /api/patterns/compile:
+    post:
+      summary: Compile patterns
+      operationId: compilePatterns
+      description: Compile patterns from user's memories
+      tags:
+        - Patterns
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                minOccurrences:
+                  type: integer
+                timeWindow:
+                  type: string
+      responses:
+        '200':
+          description: OK
+  /api/patterns/detect:
+    post:
+      summary: Detect behavioral patterns
+      operationId: detectPatterns
+      description: >-
+        Run pattern detection algorithms to identify recurring behavioral
+        patterns
+      tags:
+        - Patterns
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contextFilter:
+                  type: string
+                  description: Filter patterns by context
+                timeframeStart:
+                  type: string
+                  format: date-time
+                  description: Start of detection timeframe
+                timeframeEnd:
+                  type: string
+                  format: date-time
+                  description: End of detection timeframe
+                minConfidence:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+                  default: 0.5
+                  description: Minimum confidence threshold
+                maxResults:
+                  type: integer
+                  default: 50
+                  description: Maximum patterns to return
+                autoStore:
+                  type: boolean
+                  default: true
+                  description: Automatically store detected patterns
+      responses:
+        '200':
+          description: Patterns detected successfully
+        '422':
+          description: Validation error
+  /api/patterns/analyze:
+    post:
+      summary: Analyze pattern trends
+      operationId: analyzePatterns
+      description: Analyze pattern trends, correlations, and generate insights
+      tags:
+        - Patterns
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                timeRange:
+                  type: integer
+                  default: 30
+                  description: Analysis time range in days
+                groupBy:
+                  type: string
+                  enum:
+                    - type
+                    - context
+                    - confidence
+                  default: type
+                  description: Group analysis by criteria
+                includeDetails:
+                  type: boolean
+                  default: false
+                  description: Include detailed breakdown
+      responses:
+        '200':
+          description: Analysis completed successfully
+  /api/patterns/{id}:
+    patch:
+      summary: Update pattern
+      operationId: updatePattern
+      description: Update an existing pattern with partial data
+      tags:
+        - Patterns
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The pattern ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                confidence:
+                  type: number
+                metadata:
+                  type: object
+      responses:
+        '200':
+          description: OK
+  /api/patterns/feedback:
+    post:
+      summary: Record pattern feedback
+      operationId: recordPatternFeedback
+      description: Record feedback on a pattern
+      tags:
+        - Patterns
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - patternId
+                - feedback
+              properties:
+                patternId:
+                  type: string
+                feedback:
+                  type: string
+      responses:
+        '200':
+          description: OK
+  /api/patterns/behavior/state:
+    get:
+      summary: Get behavioral state
+      operationId: getBehavioralState
+      description: Get current behavioral state for the authenticated user
+      tags:
+        - Behavior
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Update behavioral state
+      operationId: updateBehavioralState
+      description: Update or mutate behavioral state
+      tags:
+        - Behavior
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                state:
+                  type: object
+                mutations:
+                  type: object
+      responses:
+        '200':
+          description: OK
+  /api/system/health:
+    get:
+      summary: Get system health status
+      operationId: getSystemHealth
+      description: >-
+        Get the current health status of the system including database
+        connectivity
+      tags:
+        - System
+      responses:
+        '200':
+          description: OK
+        '503':
+          description: Service Unavailable
+  /api/system/context/status:
+    get:
+      summary: Get context status
+      operationId: getContextStatus
+      description: Get database statistics and context information
+      tags:
+        - System
+      responses:
+        '200':
+          description: OK
+  /api/system/feature-flags:
+    get:
+      summary: Get feature flags
+      operationId: getFeatureFlags
+      description: Get all feature flags for the authenticated user
+      tags:
+        - System
+      responses:
+        '200':
+          description: OK
+  /api/system/feature-flags/evaluate:
+    post:
+      summary: Evaluate feature flag
+      operationId: evaluateFeatureFlag
+      description: Evaluate a specific feature flag for the authenticated user
+      tags:
+        - System
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - flagName
+              properties:
+                flagName:
+                  type: string
+                context:
+                  type: object
+      responses:
+        '200':
+          description: OK
+  /api/system/memory/quality:
+    get:
+      summary: Analyze memory quality distribution
+      operationId: analyzeMemoryQuality
+      description: Analyze the quality distribution of memories for the authenticated user
+      tags:
+        - System
+      parameters:
+        - in: query
+          name: includeDetails
+          schema:
+            type: boolean
+          description: Include detailed pruning candidate information
+        - in: query
+          name: minQualityThreshold
+          schema:
+            type: number
+          description: Minimum quality threshold for pruning candidates (default 0.4)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      totalMemories:
+                        type: number
+                      qualityDistribution:
+                        type: object
+                        properties:
+                          high:
+                            type: number
+                          medium:
+                            type: number
+                          low:
+                            type: number
+                      averageQuality:
+                        type: number
+                      pruningCandidates:
+                        type: number
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal Server Error
+  /api/system/memory/prune:
+    post:
+      summary: Prune low-quality memories
+      operationId: pruneMemories
+      description: Prune (soft delete) low-quality memories for the authenticated user
+      tags:
+        - System
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targetReduction:
+                  type: number
+                  description: Number of memories to prune
+                minQualityThreshold:
+                  type: number
+                  description: Prune memories below this score (default 0.4)
+                preserveRecent:
+                  type: boolean
+                  description: Don't prune recent memories (default true)
+                recentDaysToPreserve:
+                  type: number
+                  description: Days to consider "recent" (default 7)
+                dryRun:
+                  type: boolean
+                  description: Return what would be pruned without deleting (default false)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      prunedCount:
+                        type: number
+                      prunedIds:
+                        type: array
+                        items:
+                          type: string
+                      dryRun:
+                        type: boolean
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal Server Error
+  /api/topics:
+    get:
+      summary: List topics
+      operationId: listTopics
+      description: List all topics with pagination
+      tags:
+        - Topics
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of topics to return
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+          description: Number of topics to skip
+      responses:
+        '200':
+          description: OK
+  /api/topics/{id}:
+    get:
+      summary: Get topic by ID
+      operationId: getTopicById
+      description: Retrieve a specific topic by its ID
+      tags:
+        - Topics
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The topic ID
+      responses:
+        '200':
+          description: OK
+  /api/topics/merge:
+    post:
+      summary: Merge topics
+      operationId: mergeTopics
+      description: Merge two topics into one
+      tags:
+        - Topics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sourceTopicId
+                - targetTopicId
+              properties:
+                sourceTopicId:
+                  type: string
+                targetTopicId:
+                  type: string
+      responses:
+        '200':
+          description: OK
+  /api/topics/discover-related:
+    post:
+      summary: Discover related topics
+      operationId: discoverRelatedTopics
+      description: Discover topics related to a given topic
+      tags:
+        - Topics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - topicId
+              properties:
+                topicId:
+                  type: string
+                limit:
+                  type: integer
+                  default: 10
+      responses:
+        '200':
+          description: OK
+  /api/topics/similarity:
+    post:
+      summary: Calculate topic similarity
+      operationId: calculateTopicSimilarity
+      description: Calculate similarity score between two topics
+      tags:
+        - Topics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - topicId1
+                - topicId2
+              properties:
+                topicId1:
+                  type: string
+                topicId2:
+                  type: string
+      responses:
+        '200':
+          description: OK
+  /api/topics/similar:
+    post:
+      summary: Find similar topics
+      operationId: findSimilarTopics
+      description: Find topics similar to a given topic
+      tags:
+        - Topics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - topicId
+              properties:
+                topicId:
+                  type: string
+                threshold:
+                  type: number
+                  default: 0.1
+                limit:
+                  type: integer
+                  default: 10
+      responses:
+        '200':
+          description: OK
+  /api/topics/cluster:
+    post:
+      summary: Cluster topics
+      operationId: clusterTopics
+      description: Cluster topics using community detection algorithms
+      tags:
+        - Topics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                minClusterSize:
+                  type: integer
+                  default: 2
+      responses:
+        '200':
+          description: OK
+  /api/topics/detect-communities:
+    post:
+      summary: Detect communities
+      operationId: detectCommunities
+      description: Detect communities in the topic graph using specified algorithm
+      tags:
+        - Topics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                algorithm:
+                  type: string
+                  default: louvain
+      responses:
+        '200':
+          description: OK
+  /api/topics/communities:
+    get:
+      summary: List communities
+      operationId: listCommunities
+      description: List all communities with pagination
+      tags:
+        - Communities
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of communities to return
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+          description: Number of communities to skip
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Community'
+                  pagination:
+                    type: object
+                    properties:
+                      limit:
+                        type: integer
+                      offset:
+                        type: integer
+                      count:
+                        type: integer
+  /api/topics/communities/{id}:
+    get:
+      summary: Get community by ID
+      operationId: getCommunityById
+      description: Retrieve a specific community by its ID
+      tags:
+        - Communities
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The community ID
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Community'
+  /api/topics/communities/merge:
+    post:
+      summary: Merge communities
+      operationId: mergeCommunities
+      description: Merge two communities into one
+      tags:
+        - Communities
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MergeCommunitiesRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Community'
+  /api/topics/search:
+    post:
+      summary: Search topics
+      operationId: searchTopics
+      description: Search topics by query string using fulltext search
+      tags:
+        - Topics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                limit:
+                  type: integer
+                  default: 20
+                offset:
+                  type: integer
+                  default: 0
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+tags: []
+

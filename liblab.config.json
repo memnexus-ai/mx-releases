@@ -1,0 +1,58 @@
+{
+  "sdkName": "memnexus",
+  "apiVersion": "1.0.0",
+  "apiName": "MemNexus",
+  "specFilePath": "specs/openapi.yaml",
+  "languages": ["typescript"],
+  "languageOptions": {
+    "typescript": {
+      "bundle": true,
+      "githubRepoName": "memnexus-ai/mx-releases",
+      "homepage": "https://github.com/memnexus-ai/mx-releases",
+      "liblabVersion": "2",
+      "sdkVersion": "1.0.0",
+      "httpLibrary": "axios"
+    }
+  },
+  "publishing": {
+    "npm": {
+      "packageName": "@memnexus-ai/sdk",
+      "githubRepoName": "memnexus-ai/mx-releases"
+    }
+  },
+  "customizations": {
+    "packageName": "@memnexus-ai/sdk",
+    "devContainer": false,
+    "generateEnv": true,
+    "inferServiceNames": false,
+    "injectedModels": [],
+    "license": {
+      "type": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "responseHeaders": false,
+    "retry": {
+      "enabled": true,
+      "maxAttempts": 3,
+      "retryDelay": 150,
+      "maxDelay": 5000,
+      "retryDelayJitter": 50,
+      "backOffFactor": 2,
+      "httpCodesToRetry": [408, 429, 500, 502, 503, 504],
+      "httpMethodsToRetry": ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]
+    }
+  },
+  "deliverables": [
+    {
+      "type": "compiled-sdk",
+      "outputPath": "packages/sdk"
+    }
+  ],
+  "hooks": {
+    "enabled": false,
+    "sourceDir": "hooks",
+    "hooksDir": "hooks"
+  },
+  "docs": ["api"],
+  "auth": []
+}
