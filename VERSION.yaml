@@ -1,0 +1,55 @@
+# MemNexus Platform Version
+# This file is the single source of truth for compatible versions across the platform
+# Last updated: 2025-12-10
+
+platform: 1.0.0
+
+# Generated packages - ALL share the same version (tied to spec)
+# These packages are generated from the OpenAPI spec using liblab
+generated:
+  version: 1.0.0                    # Single version for all generated packages
+  spec_version: 1.0.0               # OpenAPI spec version this was generated from
+  last_updated: "2025-12-10T15:05:00Z"
+  packages:
+    sdk:
+      package: "@memnexus-ai/sdk"
+      npm_url: https://www.npmjs.com/package/@memnexus-ai/sdk
+      description: "TypeScript SDK for programmatic API access"
+    cli:
+      package: "@memnexus-ai/cli"
+      npm_url: https://www.npmjs.com/package/@memnexus-ai/cli
+      description: "Command-line interface for terminal users"
+    mcp:
+      package: "@memnexus-ai/mcp-server"
+      npm_url: https://www.npmjs.com/package/@memnexus-ai/mcp-server
+      description: "Model Context Protocol server for AI agent integration"
+
+# Backend components (independent versioning)
+components:
+  core-api:
+    version: 1.0.0
+    repo: memnexus-ai/mx-core-api
+    last_updated: "2025-12-10T15:05:00Z"
+    description: "Core API service providing MemNexus functionality"
+
+  gateway:
+    version: 1.0.0
+    repo: memnexus-ai/mx-api-gateway
+    last_updated: "2025-12-10T15:05:00Z"
+    description: "Kong API Gateway with routing and authentication"
+
+# Release history
+releases:
+  - platform: 1.0.0
+    date: "2025-12-10"
+    generated_version: 1.0.0        # SDK, CLI, MCP all at this version
+    components:
+      core-api: 1.0.0
+      gateway: 1.0.0
+    changelog: |
+      - Initial unified release system
+      - SDK, CLI, and MCP Server all generated from same OpenAPI spec
+      - Centralized version coordination
+      - Automated release pipeline established
+    breaking_changes: false
+    notes: "First release using unified mx-releases repository"
