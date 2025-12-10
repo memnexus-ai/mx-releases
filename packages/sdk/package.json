@@ -1,0 +1,59 @@
+{
+  "name": "@memnexus-ai/sdk",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for the MemNexus API - Memory management for AI agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src --ext .ts",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/memnexus-ai/mx-releases.git",
+    "directory": "packages/sdk"
+  },
+  "keywords": [
+    "memnexus",
+    "memory",
+    "ai",
+    "sdk",
+    "typescript",
+    "api-client",
+    "knowledge-graph",
+    "graphrag"
+  ],
+  "author": "MemNexus AI",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/memnexus-ai/mx-releases/issues"
+  },
+  "homepage": "https://github.com/memnexus-ai/mx-releases/tree/main/packages/sdk#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}
