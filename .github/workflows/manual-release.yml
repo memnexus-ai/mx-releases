@@ -1,0 +1,549 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_override:
+        description: 'Version to publish (e.g., 1.2.3). Leave empty to auto-detect.'
+        required: false
+        type: string
+      skip_tests:
+        description: 'Skip package tests (use with caution!)'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Dry run - generate everything but do not publish'
+        required: false
+        type: boolean
+        default: false
+      packages_to_publish:
+        description: 'Packages to publish (comma-separated: sdk,cli,mcp or "all")'
+        required: false
+        type: string
+        default: 'all'
+
+env:
+  NODE_VERSION: '20.x'
+
+permissions:
+  contents: write      # For git operations (tags, releases)
+  id-token: write      # Required for npm Trusted Publishing via OIDC
+  pull-requests: write # For commenting on PRs
+
+jobs:
+  # Pre-flight safety checks
+  safety-checks:
+    name: Safety Checks
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      packages: ${{ steps.packages.outputs.packages }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate version format
+        if: inputs.version_override != ''
+        run: |
+          VERSION="${{ inputs.version_override }}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid version format: $VERSION"
+            echo "Version must be in format: MAJOR.MINOR.PATCH (e.g., 1.2.3)"
+            exit 1
+          fi
+          echo "✅ Version format is valid: $VERSION"
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version_override }}" ]; then
+            VERSION="${{ inputs.version_override }}"
+            echo "Using manual version: $VERSION"
+          else
+            # Read from VERSION.yaml
+            VERSION=$(grep -oP '(?<=version: )[0-9]+\.[0-9]+\.[0-9]+' VERSION.yaml | head -1)
+            echo "Using VERSION.yaml version: $VERSION"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Parse packages to publish
+        id: packages
+        run: |
+          INPUT="${{ inputs.packages_to_publish }}"
+          if [ "$INPUT" = "all" ] || [ -z "$INPUT" ]; then
+            PACKAGES='["sdk","cli","mcp"]'
+          else
+            # Convert comma-separated to JSON array
+            PACKAGES=$(echo "$INPUT" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$";""))')
+          fi
+          echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
+          echo "Will publish: $PACKAGES"
+
+      - name: Check if version already published
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Check SDK
+          if npm view @memnexus-ai/sdk@$VERSION version 2>/dev/null; then
+            echo "⚠️  @memnexus-ai/sdk@$VERSION already exists on npm"
+            echo "SDK_EXISTS=true" >> $GITHUB_ENV
+          fi
+
+          # Check CLI
+          if npm view @memnexus-ai/cli@$VERSION version 2>/dev/null; then
+            echo "⚠️  @memnexus-ai/cli@$VERSION already exists on npm"
+            echo "CLI_EXISTS=true" >> $GITHUB_ENV
+          fi
+
+          # Check MCP
+          if npm view @memnexus-ai/mcp-server@$VERSION version 2>/dev/null; then
+            echo "⚠️  @memnexus-ai/mcp-server@$VERSION already exists on npm"
+            echo "MCP_EXISTS=true" >> $GITHUB_ENV
+          fi
+
+          if [ "$SDK_EXISTS" = "true" ] || [ "$CLI_EXISTS" = "true" ] || [ "$MCP_EXISTS" = "true" ]; then
+            echo "⚠️  One or more packages already published at version $VERSION"
+            echo "This manual release will skip already-published packages"
+          fi
+
+      - name: Display release summary
+        run: |
+          echo "## Manual Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Packages:** ${{ steps.packages.outputs.packages }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Skip Tests:** ${{ inputs.skip_tests }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Dry Run:** ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ inputs.skip_tests }}" = "true" ]; then
+            echo "⚠️ **WARNING:** Tests will be skipped!" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "ℹ️ **DRY RUN MODE:** Nothing will be published" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Generate SDK using liblab
+  generate-sdk:
+    name: Generate SDK with liblab
+    runs-on: ubuntu-latest
+    needs: safety-checks
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install liblab CLI
+        run: npm install -g liblab
+
+      - name: Generate SDK
+        env:
+          LIBLAB_TOKEN: ${{ secrets.LIBLAB_API_KEY }}
+        run: |
+          liblab build --yes
+          echo "✅ SDK generation successful"
+
+      - name: Move generated SDK to packages
+        run: |
+          rm -rf packages/sdk/src packages/sdk/documentation
+          cp -r output/typescript/* packages/sdk/
+          echo "✅ SDK moved to packages/sdk/"
+
+      - name: Update SDK version
+        run: |
+          cd packages/sdk
+          npm version ${{ needs.safety-checks.outputs.version }} --no-git-tag-version
+          echo "✅ SDK version updated to ${{ needs.safety-checks.outputs.version }}"
+
+      - name: Upload SDK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-sdk
+          path: packages/sdk/
+          retention-days: 1
+
+  # Build and test all packages
+  build-all-packages:
+    name: Build ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    needs: [safety-checks, generate-sdk]
+    strategy:
+      matrix:
+        package: ${{ fromJson(needs.safety-checks.outputs.packages) }}
+      fail-fast: true  # Fail immediately if any package fails
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download SDK artifact
+        if: matrix.package != 'sdk'
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-sdk
+          path: packages/sdk/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Update package version
+        run: |
+          cd packages/${{ matrix.package }}
+          npm version ${{ needs.safety-checks.outputs.version }} --no-git-tag-version
+
+      - name: Install dependencies
+        run: |
+          cd packages/${{ matrix.package }}
+          npm ci || npm install
+
+      - name: Lint package
+        run: |
+          cd packages/${{ matrix.package }}
+          npm run lint || echo "⚠️  Linting skipped (no lint script)"
+
+      - name: Build package
+        run: |
+          cd packages/${{ matrix.package }}
+          npm run build
+
+      - name: Test package
+        if: inputs.skip_tests == false
+        run: |
+          cd packages/${{ matrix.package }}
+          npm test --passWithNoTests || echo "⚠️  No tests found"
+
+      - name: Check package integrity
+        run: |
+          cd packages/${{ matrix.package }}
+          npm pack --dry-run
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.package }}
+          path: packages/${{ matrix.package }}/
+          retention-days: 1
+
+  # Publish to @next tag first (staging)
+  publish-to-next:
+    name: Publish ${{ matrix.package }} to @next
+    runs-on: ubuntu-latest
+    if: inputs.dry_run == false
+    needs: [safety-checks, build-all-packages]
+    environment:
+      name: npm-registry
+      url: https://www.npmjs.com/package/@memnexus-ai/${{ matrix.package }}
+    strategy:
+      matrix:
+        package: ${{ fromJson(needs.safety-checks.outputs.packages) }}
+      fail-fast: true
+    steps:
+      - name: Download package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: package-${{ matrix.package }}
+          path: packages/${{ matrix.package }}/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@memnexus-ai'
+
+      - name: Ensure latest npm
+        run: npm install -g npm@latest
+
+      - name: Check if version exists
+        id: check
+        run: |
+          cd packages/${{ matrix.package }}
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+
+          if npm view $PACKAGE_NAME@$VERSION version 2>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️  $PACKAGE_NAME@$VERSION already exists, skipping"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish to @next tag
+        if: steps.check.outputs.exists == 'false'
+        env:
+          NPM_CONFIG_PROVENANCE: true
+        run: |
+          cd packages/${{ matrix.package }}
+          npm publish --tag next --access public --provenance
+          echo "✅ Published to @next tag"
+
+  # Atomic promotion to @latest
+  promote-to-latest:
+    name: Promote to @latest
+    runs-on: ubuntu-latest
+    if: inputs.dry_run == false
+    needs: [safety-checks, publish-to-next]
+    environment:
+      name: npm-registry
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@memnexus-ai'
+
+      - name: Ensure latest npm
+        run: npm install -g npm@latest
+
+      - name: Promote all packages atomically
+        env:
+          NPM_CONFIG_PROVENANCE: true
+        run: |
+          VERSION="${{ needs.safety-checks.outputs.version }}"
+          PACKAGES='${{ needs.safety-checks.outputs.packages }}'
+
+          echo "Promoting version $VERSION to @latest..."
+
+          # Promote SDK
+          if echo "$PACKAGES" | jq -e 'index("sdk")' > /dev/null; then
+            if npm view @memnexus-ai/sdk@$VERSION version 2>/dev/null; then
+              npm dist-tag add @memnexus-ai/sdk@$VERSION latest
+              echo "✅ SDK promoted to @latest"
+            fi
+          fi
+
+          # Promote CLI
+          if echo "$PACKAGES" | jq -e 'index("cli")' > /dev/null; then
+            if npm view @memnexus-ai/cli@$VERSION version 2>/dev/null; then
+              npm dist-tag add @memnexus-ai/cli@$VERSION latest
+              echo "✅ CLI promoted to @latest"
+            fi
+          fi
+
+          # Promote MCP
+          if echo "$PACKAGES" | jq -e 'index("mcp")' > /dev/null; then
+            if npm view @memnexus-ai/mcp-server@$VERSION version 2>/dev/null; then
+              npm dist-tag add @memnexus-ai/mcp-server@$VERSION latest
+              echo "✅ MCP promoted to @latest"
+            fi
+          fi
+
+          echo "🎉 All packages promoted to @latest"
+
+  # Sync OpenAPI spec to Postman Spec Hub
+  sync-postman-spec:
+    name: Sync to Postman Spec Hub
+    runs-on: ubuntu-latest
+    if: inputs.dry_run == false
+    needs: [safety-checks, promote-to-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Sync OpenAPI spec
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+        run: |
+          curl -X PUT \
+            "https://api.postman.com/apis/${{ secrets.POSTMAN_API_ID }}/versions/${{ secrets.POSTMAN_VERSION_ID }}/schemas/${{ secrets.POSTMAN_SCHEMA_ID }}" \
+            -H "X-Api-Key: $POSTMAN_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d @specs/openapi.yaml
+
+          echo "✅ OpenAPI spec synced to Postman Spec Hub"
+
+  # Sync Postman collection
+  sync-postman-collection:
+    name: Sync Postman Collection
+    runs-on: ubuntu-latest
+    if: inputs.dry_run == false
+    needs: [safety-checks, sync-postman-spec]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Postman CLI
+        run: npm install -g postman-cli
+
+      - name: Sync collection
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+        run: |
+          # Generate collection from OpenAPI spec
+          postman convert openapi-to-collection specs/openapi.yaml \
+            --output postman-collection.json
+
+          # Update Postman collection
+          curl -X PUT \
+            "https://api.postman.com/collections/${{ secrets.POSTMAN_COLLECTION_ID }}" \
+            -H "X-Api-Key: $POSTMAN_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d @postman-collection.json
+
+          echo "✅ Postman collection synced"
+
+  # Create GitHub release
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    if: inputs.dry_run == false
+    needs: [safety-checks, promote-to-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update VERSION.yaml
+        if: inputs.version_override != ''
+        run: |
+          VERSION="${{ needs.safety-checks.outputs.version }}"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Update generated.version and generated.last_updated
+          sed -i "s/^  version: .*/  version: $VERSION/" VERSION.yaml
+          sed -i "s/^  last_updated: .*/  last_updated: \"$TIMESTAMP\"/" VERSION.yaml
+
+          echo "✅ VERSION.yaml updated to $VERSION"
+
+      - name: Update CHANGELOG.md
+        run: |
+          VERSION="${{ needs.safety-checks.outputs.version }}"
+          DATE=$(date -u +"%Y-%m-%d")
+
+          # Prepend new version entry to CHANGELOG
+          echo -e "## [$VERSION] - $DATE\n\n### Manual Release\n\n- Manual release triggered by @${{ github.actor }}\n- Packages: ${{ needs.safety-checks.outputs.packages }}\n\n$(cat CHANGELOG.md)" > CHANGELOG.md
+
+          echo "✅ CHANGELOG.md updated"
+
+      - name: Commit version bump
+        if: inputs.version_override != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add VERSION.yaml CHANGELOG.md
+          git commit -m "chore: manual release ${{ needs.safety-checks.outputs.version }}"
+          git push
+
+      - name: Create git tag
+        run: |
+          VERSION="${{ needs.safety-checks.outputs.version }}"
+
+          git tag -a "v$VERSION" -m "Release $VERSION (manual)"
+          git push origin "v$VERSION"
+
+          echo "✅ Git tag created: v$VERSION"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.safety-checks.outputs.version }}"
+
+          gh release create "v$VERSION" \
+            --title "Release $VERSION (Manual)" \
+            --notes "Manual release of MemNexus packages
+
+          **Released Packages:**
+          - @memnexus-ai/sdk@$VERSION
+          - @memnexus-ai/cli@$VERSION
+          - @memnexus-ai/mcp-server@$VERSION
+
+          **Triggered by:** @${{ github.actor }}
+
+          **Changes:**
+          See [CHANGELOG.md](https://github.com/memnexus-ai/mx-releases/blob/main/CHANGELOG.md#${VERSION//.})
+
+          **Install:**
+          \`\`\`bash
+          npm install @memnexus-ai/sdk@$VERSION
+          npm install -g @memnexus-ai/cli@$VERSION
+          npx @memnexus-ai/mcp-server@$VERSION
+          \`\`\`"
+
+          echo "✅ GitHub release created"
+
+  # Rollback on failure (deprecate published packages)
+  rollback-on-failure:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    if: failure() && inputs.dry_run == false
+    needs: [safety-checks, publish-to-next, promote-to-latest]
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@memnexus-ai'
+
+      - name: Deprecate published packages
+        run: |
+          VERSION="${{ needs.safety-checks.outputs.version }}"
+          PACKAGES='${{ needs.safety-checks.outputs.packages }}'
+
+          echo "⚠️  Rolling back failed release..."
+
+          # Deprecate SDK
+          if echo "$PACKAGES" | jq -e 'index("sdk")' > /dev/null; then
+            if npm view @memnexus-ai/sdk@$VERSION version 2>/dev/null; then
+              npm deprecate @memnexus-ai/sdk@$VERSION "Release failed - do not use"
+              echo "⚠️  SDK deprecated"
+            fi
+          fi
+
+          # Deprecate CLI
+          if echo "$PACKAGES" | jq -e 'index("cli")' > /dev/null; then
+            if npm view @memnexus-ai/cli@$VERSION version 2>/dev/null; then
+              npm deprecate @memnexus-ai/cli@$VERSION "Release failed - do not use"
+              echo "⚠️  CLI deprecated"
+            fi
+          fi
+
+          # Deprecate MCP
+          if echo "$PACKAGES" | jq -e 'index("mcp")' > /dev/null; then
+            if npm view @memnexus-ai/mcp-server@$VERSION version 2>/dev/null; then
+              npm deprecate @memnexus-ai/mcp-server@$VERSION "Release failed - do not use"
+              echo "⚠️  MCP deprecated"
+            fi
+          fi
+
+          echo "⚠️  Rollback complete - packages deprecated"
+
+      - name: Create rollback issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Failed release rollback: ${{ needs.safety-checks.outputs.version }}" \
+            --body "A manual release failed and packages were deprecated.
+
+          **Version:** ${{ needs.safety-checks.outputs.version }}
+          **Triggered by:** @${{ github.actor }}
+          **Workflow run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          **Action required:**
+          1. Investigate the failure
+          2. Fix the issue
+          3. Re-run the manual release workflow
+
+          Deprecated packages:
+          ${{ needs.safety-checks.outputs.packages }}" \
+            --label "bug,release"

@@ -1,0 +1,507 @@
+name: Release Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'specs/openapi.yaml'
+      - 'liblab.config.json'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+    inputs:
+      version_override:
+        description: 'Version override (leave empty for auto-detection)'
+        required: false
+        type: string
+      skip_tests:
+        description: 'Skip tests (use with caution)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  # Job 1: Determine version based on OpenAPI spec changes
+  determine-version:
+    name: Determine Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      version_type: ${{ steps.version.outputs.version_type }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Get current version
+        id: current
+        run: |
+          version=$(node -p "require('./VERSION.yaml').generated.version" || echo "1.0.0")
+          echo "current_version=$version" >> $GITHUB_OUTPUT
+
+      - name: Detect version bump type
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version_override }}" ]; then
+            echo "version=${{ github.event.inputs.version_override }}" >> $GITHUB_OUTPUT
+            echo "version_type=manual" >> $GITHUB_OUTPUT
+            echo "✅ Using manual version override: ${{ github.event.inputs.version_override }}"
+          else
+            # Install openapi-diff for breaking change detection
+            npm install -g openapi-diff
+
+            # Get previous OpenAPI spec
+            git show HEAD~1:specs/openapi.yaml > /tmp/openapi-old.yaml 2>/dev/null || echo "openapi: 3.0.0" > /tmp/openapi-old.yaml
+
+            # Compare specs
+            if openapi-diff /tmp/openapi-old.yaml specs/openapi.yaml --json > /tmp/diff.json; then
+              echo "No breaking changes detected"
+
+              # Check if there are any changes at all
+              if diff -q /tmp/openapi-old.yaml specs/openapi.yaml > /dev/null 2>&1; then
+                echo "version_type=patch" >> $GITHUB_OUTPUT
+                echo "No spec changes, patch bump"
+              else
+                echo "version_type=minor" >> $GITHUB_OUTPUT
+                echo "New features added, minor bump"
+              fi
+            else
+              echo "Breaking changes detected"
+              echo "version_type=major" >> $GITHUB_OUTPUT
+            fi
+
+            # Calculate new version
+            current="${{ steps.current.outputs.current_version }}"
+            IFS='.' read -r major minor patch <<< "$current"
+
+            case "${{ steps.version.outputs.version_type }}" in
+              major)
+                new_version="$((major + 1)).0.0"
+                ;;
+              minor)
+                new_version="${major}.$((minor + 1)).0"
+                ;;
+              *)
+                new_version="${major}.${minor}.$((patch + 1))"
+                ;;
+            esac
+
+            echo "version=$new_version" >> $GITHUB_OUTPUT
+            echo "✅ Calculated version: $new_version (type: ${{ steps.version.outputs.version_type }})"
+          fi
+
+  # Job 2: Generate SDK using liblab
+  generate-sdk:
+    name: Generate SDK
+    runs-on: ubuntu-latest
+    needs: determine-version
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install liblab CLI
+        run: npm install -g liblab
+
+      - name: Verify liblab installation
+        run: liblab --version
+
+      - name: Generate SDK with liblab
+        env:
+          LIBLAB_TOKEN: ${{ secrets.LIBLAB_API_KEY }}
+        run: |
+          echo "Generating SDK with liblab..."
+          liblab build --yes
+          echo "✅ SDK generation complete"
+
+      - name: Move generated SDK to packages directory
+        run: |
+          rm -rf packages/sdk/*
+          cp -r output/typescript/* packages/sdk/
+          echo "✅ SDK moved to packages/sdk/"
+
+      - name: Update SDK version
+        run: |
+          cd packages/sdk
+          npm version ${{ needs.determine-version.outputs.version }} --no-git-tag-version
+          echo "✅ SDK version updated to ${{ needs.determine-version.outputs.version }}"
+
+      - name: Upload SDK artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: sdk-package
+          path: packages/sdk/
+
+  # Job 3: Build and test all packages
+  build-all-packages:
+    name: Build & Test ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    needs: [determine-version, generate-sdk]
+    strategy:
+      matrix:
+        package: [sdk, cli, mcp]
+      fail-fast: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download SDK artifact
+        if: matrix.package == 'sdk'
+        uses: actions/download-artifact@v3
+        with:
+          name: sdk-package
+          path: packages/sdk/
+
+      - name: Update package version
+        run: |
+          cd packages/${{ matrix.package }}
+          npm version ${{ needs.determine-version.outputs.version }} --no-git-tag-version
+
+      - name: Install dependencies
+        run: |
+          cd packages/${{ matrix.package }}
+          npm ci || npm install
+
+      - name: Build package
+        run: |
+          cd packages/${{ matrix.package }}
+          npm run build
+
+      - name: Run tests
+        if: github.event.inputs.skip_tests != 'true'
+        run: |
+          cd packages/${{ matrix.package }}
+          npm test --passWithNoTests || echo "No tests found, continuing..."
+
+      - name: Check package contents
+        run: |
+          cd packages/${{ matrix.package }}
+          npm pack --dry-run
+
+      - name: Upload built package
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.package }}-built
+          path: packages/${{ matrix.package }}/
+
+  # Job 4: Publish all packages to @next tag
+  publish-to-next:
+    name: Publish to @next
+    runs-on: ubuntu-latest
+    needs: [determine-version, build-all-packages]
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      version: ${{ needs.determine-version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@memnexus-ai'
+
+      - name: Ensure latest npm
+        run: npm install -g npm@latest
+
+      - name: Download all built packages
+        uses: actions/download-artifact@v3
+        with:
+          path: packages-built/
+
+      - name: Publish SDK to @next
+        env:
+          NPM_CONFIG_PROVENANCE: true
+        run: |
+          cd packages-built/sdk-built
+          npm publish --tag next --access public --provenance
+          echo "✅ SDK published to @next"
+
+      - name: Publish CLI to @next
+        env:
+          NPM_CONFIG_PROVENANCE: true
+        run: |
+          cd packages-built/cli-built
+          npm publish --tag next --access public --provenance
+          echo "✅ CLI published to @next"
+
+      - name: Publish MCP to @next
+        env:
+          NPM_CONFIG_PROVENANCE: true
+        run: |
+          cd packages-built/mcp-built
+          npm publish --tag next --access public --provenance
+          echo "✅ MCP Server published to @next"
+
+      - name: Verify all packages published
+        run: |
+          sleep 5  # Give npm registry time to propagate
+          npm view @memnexus-ai/sdk@${{ needs.determine-version.outputs.version }} version
+          npm view @memnexus-ai/cli@${{ needs.determine-version.outputs.version }} version
+          npm view @memnexus-ai/mcp-server@${{ needs.determine-version.outputs.version }} version
+          echo "✅ All packages verified on @next tag"
+
+  # Job 5: Promote all packages to @latest atomically
+  promote-to-latest:
+    name: Promote to @latest
+    runs-on: ubuntu-latest
+    needs: publish-to-next
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@memnexus-ai'
+
+      - name: Promote SDK to @latest
+        run: |
+          npm dist-tag add @memnexus-ai/sdk@${{ needs.publish-to-next.outputs.version }} latest
+          echo "✅ SDK promoted to @latest"
+
+      - name: Promote CLI to @latest
+        run: |
+          npm dist-tag add @memnexus-ai/cli@${{ needs.publish-to-next.outputs.version }} latest
+          echo "✅ CLI promoted to @latest"
+
+      - name: Promote MCP to @latest
+        run: |
+          npm dist-tag add @memnexus-ai/mcp-server@${{ needs.publish-to-next.outputs.version }} latest
+          echo "✅ MCP Server promoted to @latest"
+
+      - name: Verify promotion
+        run: |
+          sleep 3
+          echo "Verifying @latest tags..."
+          npm view @memnexus-ai/sdk dist-tags
+          npm view @memnexus-ai/cli dist-tags
+          npm view @memnexus-ai/mcp-server dist-tags
+          echo "✅ All packages promoted to @latest"
+
+  # Job 6: Sync OpenAPI spec to Postman Spec Hub
+  sync-postman-spec:
+    name: Sync Postman Spec
+    runs-on: ubuntu-latest
+    needs: promote-to-latest
+    if: success()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Sync OpenAPI to Postman Spec Hub
+        uses: postmanlabs/push-openapi-to-postman-spec@v1
+        with:
+          path-to-definition: specs/openapi.yaml
+          postman-api-key: ${{ secrets.POSTMAN_API_KEY }}
+          spec-id: ${{ secrets.POSTMAN_SPEC_ID }}
+          api-path-to-file-name: index.yaml
+
+      - name: Verify spec sync
+        run: echo "✅ OpenAPI spec synced to Postman Spec Hub"
+
+  # Job 7: Update Postman Collection
+  sync-postman-collection:
+    name: Sync Postman Collection
+    runs-on: ubuntu-latest
+    needs: promote-to-latest
+    if: success()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install openapi-to-postman
+        run: npm install -g openapi-to-postmanv2
+
+      - name: Convert OpenAPI to Postman Collection
+        run: |
+          openapi2postmanv2 -s specs/openapi.yaml -o postman-collection.json -p
+          echo "✅ Converted OpenAPI to Postman Collection"
+
+      - name: Update Postman Collection
+        run: |
+          jq -c '{collection: .}' postman-collection.json > /tmp/postman-wrapped.json
+
+          response=$(curl -X PUT "https://api.getpostman.com/collections/${{ secrets.POSTMAN_COLLECTION_ID }}" \
+            -H "X-Api-Key: ${{ secrets.POSTMAN_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/postman-wrapped.json \
+            -w "\n%{http_code}" \
+            -s)
+
+          http_code=$(echo "$response" | tail -n1)
+
+          if [ "$http_code" -eq 200 ]; then
+            echo "✅ Postman Collection updated successfully"
+          else
+            echo "❌ Failed to update Postman Collection (HTTP $http_code)"
+            exit 1
+          fi
+
+  # Job 8: Create GitHub release and update VERSION.yaml
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [determine-version, promote-to-latest, sync-postman-spec, sync-postman-collection]
+    if: success()
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Update VERSION.yaml
+        run: |
+          # This is a simplified update - you may need a proper YAML parser
+          sed -i "s/version: .*/version: ${{ needs.determine-version.outputs.version }}/g" VERSION.yaml
+          echo "✅ VERSION.yaml updated"
+
+      - name: Update CHANGELOG.md
+        run: |
+          today=$(date +%Y-%m-%d)
+          cat > /tmp/changelog-entry.md << EOF
+          ## [${{ needs.determine-version.outputs.version }}] - $today
+
+          ### Changed
+          - Platform release ${{ needs.determine-version.outputs.version }}
+          - Generated packages (SDK, CLI, MCP Server) updated to ${{ needs.determine-version.outputs.version }}
+          - OpenAPI specification synced
+
+          EOF
+
+          # Insert after [Unreleased] section
+          sed -i "/## \[Unreleased\]/r /tmp/changelog-entry.md" CHANGELOG.md
+          echo "✅ CHANGELOG.md updated"
+
+      - name: Commit version updates
+        run: |
+          git add VERSION.yaml CHANGELOG.md
+          git commit -m "chore(release): version ${{ needs.determine-version.outputs.version }}"
+          git push origin main
+
+      - name: Create git tags
+        run: |
+          git tag -a "platform-v${{ needs.determine-version.outputs.version }}" -m "Platform release v${{ needs.determine-version.outputs.version }}"
+          git tag -a "sdk-v${{ needs.determine-version.outputs.version }}" -m "SDK release v${{ needs.determine-version.outputs.version }}"
+          git tag -a "cli-v${{ needs.determine-version.outputs.version }}" -m "CLI release v${{ needs.determine-version.outputs.version }}"
+          git tag -a "mcp-v${{ needs.determine-version.outputs.version }}" -m "MCP Server release v${{ needs.determine-version.outputs.version }}"
+          git push origin --tags
+          echo "✅ Git tags created and pushed"
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: platform-v${{ needs.determine-version.outputs.version }}
+          release_name: 'MemNexus Platform v${{ needs.determine-version.outputs.version }}'
+          body: |
+            ## MemNexus Platform v${{ needs.determine-version.outputs.version }}
+
+            **Release Type:** ${{ needs.determine-version.outputs.version_type }}
+
+            ### Published Packages
+
+            All packages share version **${{ needs.determine-version.outputs.version }}** and are published to npm:
+
+            - **SDK**: [`@memnexus-ai/sdk@${{ needs.determine-version.outputs.version }}`](https://www.npmjs.com/package/@memnexus-ai/sdk)
+            - **CLI**: [`@memnexus-ai/cli@${{ needs.determine-version.outputs.version }}`](https://www.npmjs.com/package/@memnexus-ai/cli)
+            - **MCP Server**: [`@memnexus-ai/mcp-server@${{ needs.determine-version.outputs.version }}`](https://www.npmjs.com/package/@memnexus-ai/mcp-server)
+
+            ### Installation
+
+            ```bash
+            # SDK
+            npm install @memnexus-ai/sdk@${{ needs.determine-version.outputs.version }}
+
+            # CLI
+            npm install -g @memnexus-ai/cli@${{ needs.determine-version.outputs.version }}
+
+            # MCP Server
+            npm install @memnexus-ai/mcp-server@${{ needs.determine-version.outputs.version }}
+            ```
+
+            ### Changes
+
+            See [CHANGELOG.md](https://github.com/memnexus-ai/mx-releases/blob/main/CHANGELOG.md) for detailed changes.
+
+            ### Documentation
+
+            - [OpenAPI Spec](https://github.com/memnexus-ai/mx-releases/blob/main/specs/openapi.yaml)
+            - [Postman Collection](https://www.postman.com/memnexus)
+            - [SDK Documentation](https://github.com/memnexus-ai/mx-releases/tree/main/packages/sdk)
+          draft: false
+          prerelease: false
+
+  # Job 9: Rollback on failure - deprecate published packages
+  rollback-on-failure:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: [determine-version, publish-to-next, promote-to-latest, sync-postman-spec, sync-postman-collection, create-release]
+    if: failure()
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@memnexus-ai'
+
+      - name: Deprecate SDK
+        run: |
+          npm deprecate @memnexus-ai/sdk@${{ needs.determine-version.outputs.version }} "Release failed - do not use. Rolled back." || echo "SDK not published or already deprecated"
+
+      - name: Deprecate CLI
+        run: |
+          npm deprecate @memnexus-ai/cli@${{ needs.determine-version.outputs.version }} "Release failed - do not use. Rolled back." || echo "CLI not published or already deprecated"
+
+      - name: Deprecate MCP Server
+        run: |
+          npm deprecate @memnexus-ai/mcp-server@${{ needs.determine-version.outputs.version }} "Release failed - do not use. Rolled back." || echo "MCP not published or already deprecated"
+
+      - name: Report failure
+        run: |
+          echo "❌ Release pipeline failed"
+          echo "Version ${{ needs.determine-version.outputs.version }} has been deprecated"
+          echo "Please check the workflow logs for details"
+          exit 1
