@@ -1,12 +1,25 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.0.0
+  version: 1.1.0
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
-  generatedAt: '2025-11-16T21:09:59.505Z'
-  environment: development
+    email: support@memnexus.ai
+    url: https://memnexus.ai
+  license:
+    name: Proprietary
+    url: https://memnexus.ai/license
+  x-api-id: mx-core-api
+  x-sdk-name: memnexus-sdk
+  x-sdk-package: '@memnexus-ai/mx-typescript-sdk'
+  x-api-category: core
+  x-api-version: v1
+  x-namespace: memnexus
+  x-stability: stable
+  x-audience: internal
+  x-generatedAt: '2025-12-16T21:06:53.411Z'
+  x-environment: development
 servers:
   - url: http://localhost:3000
     description: Development
@@ -234,19 +247,19 @@ components:
         - sessionId
         - sessionCreated
         - conversationCreated
-      description: Metadata about the memory creation context
     CreateMemoryResponse:
       type: object
       properties:
         data:
-          allOf:
-            - $ref: '#/components/schemas/Memory'
-            - description: The created memory object
+          $ref: '#/components/schemas/Memory'
         meta:
           $ref: '#/components/schemas/CreateMemoryResponseMeta'
       required:
         - data
         - meta
+      description: >-
+        Response from creating a memory, includes the memory and
+        session/conversation metadata
     GraphRAGQueryRequest:
       type: object
       properties:
@@ -634,8 +647,6 @@ components:
           example: 5
         metadata:
           type: object
-          additionalProperties:
-            nullable: true
           description: Search metadata
           example:
             mode: unified
@@ -798,8 +809,6 @@ components:
           example: conv_01H5YQXGBJYZT1J5X5V3SAZWA2
         metadata:
           type: object
-          additionalProperties:
-            nullable: true
           description: Additional metadata
           example:
             format: markdown
@@ -855,8 +864,6 @@ components:
           example: conv_01H5YQXGBJYZT1J5X5V3SAZWA2
         metadata:
           type: object
-          additionalProperties:
-            nullable: true
           description: Additional metadata
           example:
             format: markdown
@@ -890,8 +897,6 @@ components:
           example: Notes from Q1 planning meeting
         metadata:
           type: object
-          additionalProperties:
-            nullable: true
           description: Additional metadata
           example:
             format: markdown
@@ -1005,7 +1010,20 @@ paths:
         - API Keys
       responses:
         '200':
-          description: OK
+          description: List of API keys retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKey'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     post:
       summary: Create API key
       operationId: createApiKey
@@ -1025,7 +1043,26 @@ paths:
                   format: date-time
       responses:
         '201':
-          description: Created
+          description: API key created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      apiKey:
+                        type: string
+                        description: The full API key (only shown once)
+                      keyInfo:
+                        $ref: '#/components/schemas/ApiKey'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /api/apikeys/{id}:
     delete:
       summary: Delete API key
@@ -1206,7 +1243,57 @@ paths:
           description: Number of conversations to skip
       responses:
         '200':
-          description: OK
+          description: List of conversations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Conversation'
+                  pagination:
+                    type: object
+                    properties:
+                      limit:
+                        type: integer
+                      offset:
+                        type: integer
+                      count:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Create conversation
+      operationId: createConversation
+      description: Create a new conversation for the authenticated user
+      tags:
+        - Conversations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConversationRequest'
+      responses:
+        '201':
+          description: Conversation created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Conversation'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /api/conversations/{conversationId}:
     get:
       summary: Get conversation summary
@@ -1223,7 +1310,24 @@ paths:
           description: The conversation ID
       responses:
         '200':
-          description: OK
+          description: Conversation retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Conversation'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /api/conversations/{conversationId}/timeline:
     get:
       summary: Get conversation timeline
@@ -1240,7 +1344,28 @@ paths:
           description: The conversation ID
       responses:
         '200':
-          description: OK
+          description: Timeline retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Memory'
+                  count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /api/conversations/search:
     post:
       summary: Search conversations
@@ -1264,7 +1389,22 @@ paths:
                   default: 20
       responses:
         '200':
-          description: OK
+          description: Search results retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Conversation'
+                  count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /api/conversations/by-topic:
     post:
       summary: Find conversations by topic
@@ -1288,7 +1428,29 @@ paths:
                   default: 20
       responses:
         '200':
-          description: OK
+          description: Conversations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Conversation'
+                  count:
+                    type: integer
+                  metadata:
+                    type: object
+                    properties:
+                      topicId:
+                        type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /api/facts:
     get:
       summary: List facts
@@ -1523,7 +1685,13 @@ paths:
     get:
       summary: Health check endpoint
       operationId: healthCheck
-      description: Returns the health status of the API service
+      description: >
+        Returns the health status and uptime of the API service.
+
+        This endpoint is public and requires no authentication.
+
+        Use this endpoint for monitoring, health checks, and availability
+        verification.
       tags:
         - Health
       security: []
@@ -1796,7 +1964,29 @@ paths:
           description: Number of patterns to skip
       responses:
         '200':
-          description: OK
+          description: List of patterns retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Pattern'
+                  pagination:
+                    type: object
+                    properties:
+                      limit:
+                        type: integer
+                      offset:
+                        type: integer
+                      count:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /api/patterns/compile:
     post:
       summary: Compile patterns
@@ -2158,7 +2348,29 @@ paths:
           description: Number of topics to skip
       responses:
         '200':
-          description: OK
+          description: List of topics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Topic'
+                  pagination:
+                    type: object
+                    properties:
+                      limit:
+                        type: integer
+                      offset:
+                        type: integer
+                      count:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /api/topics/{id}:
     get:
       summary: Get topic by ID
@@ -2175,7 +2387,24 @@ paths:
           description: The topic ID
       responses:
         '200':
-          description: OK
+          description: Topic retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Topic'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Topic not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /api/topics/merge:
     post:
       summary: Merge topics
