@@ -45,8 +45,10 @@ jobs:
       - name: Get current version
         id: current
         run: |
-          version=$(node -p "require('./VERSION.yaml').generated.version" || echo "1.0.0")
+          # Read generated.version from VERSION.yaml using grep
+          version=$(grep -A 3 "^generated:" VERSION.yaml | grep "version:" | head -1 | awk '{print $2}')
           echo "current_version=$version" >> $GITHUB_OUTPUT
+          echo "📦 Current API version: $version"
 
       - name: Detect version bump type
         id: version
@@ -389,9 +391,19 @@ jobs:
 
       - name: Update VERSION.yaml
         run: |
-          # This is a simplified update - you may need a proper YAML parser
-          sed -i "s/version: .*/version: ${{ needs.determine-version.outputs.version }}/g" VERSION.yaml
-          echo "✅ VERSION.yaml updated"
+          NEW_VERSION="${{ needs.determine-version.outputs.version }}"
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Update generated.version (API contract version)
+          sed -i "/^generated:/,/^  spec_version:/ s/^  version: .*/  version: $NEW_VERSION/" VERSION.yaml
+
+          # Update generated.spec_version
+          sed -i "/^generated:/,/^  last_updated:/ s/^  spec_version: .*/  spec_version: $NEW_VERSION/" VERSION.yaml
+
+          # Update generated.last_updated
+          sed -i "/^generated:/,/^  packages:/ s/^  last_updated: .*/  last_updated: \"$TIMESTAMP\"/" VERSION.yaml
+
+          echo "✅ VERSION.yaml updated to $NEW_VERSION"
 
       - name: Update CHANGELOG.md
         run: |

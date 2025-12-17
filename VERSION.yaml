@@ -1,15 +1,15 @@
 # MemNexus Platform Version
-# This file is the single source of truth for compatible versions across the platform
-# Last updated: 2025-12-10
+# Single source of truth for API contract versioning
+# Last updated: 2025-12-17
 
-platform: 1.0.0
+platform: 1.0.0  # Public-facing platform version
 
-# Generated packages - ALL share the same version (tied to spec)
-# These packages are generated from the OpenAPI spec using liblab
+# Generated packages - ALL share the same version (API contract version)
+# This version is embedded in the OpenAPI spec and used by SDK/CLI/MCP
 generated:
-  version: 1.0.0                    # Single version for all generated packages
-  spec_version: 1.0.0               # OpenAPI spec version this was generated from
-  last_updated: "2025-12-10T15:05:00Z"
+  version: 1.0.0                    # API contract version (what users see)
+  spec_version: 1.0.0               # OpenAPI spec version (same as above)
+  last_updated: "2025-12-17T00:00:00Z"
   packages:
     sdk:
       package: "@memnexus-ai/sdk"
@@ -24,18 +24,20 @@ generated:
       npm_url: https://www.npmjs.com/package/@memnexus-ai/mcp-server
       description: "Model Context Protocol server for AI agent integration"
 
-# Backend components (independent versioning)
+# Backend components - independent service versioning
 components:
   core-api:
-    version: 1.0.0
+    version: 1.1.0                   # Backend service version (from package.json)
+    api_version: 1.0.0               # API contract version it implements
     repo: memnexus-ai/mx-core-api
-    last_updated: "2025-12-10T15:05:00Z"
+    last_updated: "2025-12-17T00:00:00Z"
     description: "Core API service providing MemNexus functionality"
 
   gateway:
-    version: 1.0.0
+    version: 1.0.0                   # Gateway service version
+    api_version: 1.0.0               # API contract version it routes
     repo: memnexus-ai/mx-api-gateway
-    last_updated: "2025-12-10T15:05:00Z"
+    last_updated: "2025-12-17T00:00:00Z"
     description: "Kong API Gateway with routing and authentication"
 
 # Release history
