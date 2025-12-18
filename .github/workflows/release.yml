@@ -24,81 +24,47 @@ env:
   NODE_VERSION: '20.x'
 
 jobs:
-  # Job 1: Determine version based on OpenAPI spec changes
+  # Job 1: Read version from OpenAPI spec
+  # Version is now managed upstream in mx-core-api and embedded in the synced spec
   determine-version:
-    name: Determine Version
+    name: Read Version from Spec
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      version_type: ${{ steps.version.outputs.version_type }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Get current version
-        id: current
-        run: |
-          # Read generated.version from VERSION.yaml using grep
-          version=$(grep -A 3 "^generated:" VERSION.yaml | grep "version:" | head -1 | awk '{print $2}')
-          echo "current_version=$version" >> $GITHUB_OUTPUT
-          echo "📦 Current API version: $version"
+      - name: Install js-yaml
+        run: npm install -g js-yaml
 
-      - name: Detect version bump type
+      - name: Read version from OpenAPI spec
         id: version
         run: |
           if [ -n "${{ github.event.inputs.version_override }}" ]; then
-            echo "version=${{ github.event.inputs.version_override }}" >> $GITHUB_OUTPUT
-            echo "version_type=manual" >> $GITHUB_OUTPUT
-            echo "✅ Using manual version override: ${{ github.event.inputs.version_override }}"
+            # Manual override takes precedence
+            VERSION="${{ github.event.inputs.version_override }}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "✅ Using manual version override: $VERSION"
           else
-            # Install openapi-diff for breaking change detection
-            npm install -g openapi-diff
+            # Extract version from OpenAPI spec info.version field
+            VERSION=$(js-yaml specs/openapi.yaml | jq -r '.info.version')
 
-            # Get previous OpenAPI spec
-            git show HEAD~1:specs/openapi.yaml > /tmp/openapi-old.yaml 2>/dev/null || echo "openapi: 3.0.0" > /tmp/openapi-old.yaml
-
-            # Compare specs
-            if openapi-diff /tmp/openapi-old.yaml specs/openapi.yaml --json > /tmp/diff.json; then
-              echo "No breaking changes detected"
-
-              # Check if there are any changes at all
-              if diff -q /tmp/openapi-old.yaml specs/openapi.yaml > /dev/null 2>&1; then
-                echo "version_type=patch" >> $GITHUB_OUTPUT
-                echo "No spec changes, patch bump"
-              else
-                echo "version_type=minor" >> $GITHUB_OUTPUT
-                echo "New features added, minor bump"
-              fi
-            else
-              echo "Breaking changes detected"
-              echo "version_type=major" >> $GITHUB_OUTPUT
+            if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+              echo "❌ ERROR: Could not extract version from OpenAPI spec"
+              exit 1
             fi
 
-            # Calculate new version
-            current="${{ steps.current.outputs.current_version }}"
-            IFS='.' read -r major minor patch <<< "$current"
-
-            case "${{ steps.version.outputs.version_type }}" in
-              major)
-                new_version="$((major + 1)).0.0"
-                ;;
-              minor)
-                new_version="${major}.$((minor + 1)).0"
-                ;;
-              *)
-                new_version="${major}.${minor}.$((patch + 1))"
-                ;;
-            esac
-
-            echo "version=$new_version" >> $GITHUB_OUTPUT
-            echo "✅ Calculated version: $new_version (type: ${{ steps.version.outputs.version_type }})"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "📦 Version from OpenAPI spec: $VERSION"
+            echo ""
+            echo "ℹ️  Version is managed upstream by mx-core-api auto-bump workflow"
+            echo "ℹ️  mx-releases simply reads and publishes the version from the spec"
           fi
 
   # Job 2: Generate SDK using liblab
@@ -447,7 +413,7 @@ jobs:
           body: |
             ## MemNexus Platform v${{ needs.determine-version.outputs.version }}
 
-            **Release Type:** ${{ needs.determine-version.outputs.version_type }}
+            Version is automatically managed by mx-core-api based on OpenAPI spec changes.
 
             ### Published Packages
 
