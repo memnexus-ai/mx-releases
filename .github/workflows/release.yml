@@ -197,7 +197,20 @@ jobs:
           cd sdk-built
           npm ci || npm install
 
+      - name: Check if SDK version already published
+        id: check-sdk-published
+        run: |
+          VERSION=${{ needs.determine-version.outputs.version }}
+          if npm view @memnexus-ai/sdk@${VERSION} version 2>/dev/null; then
+            echo "SDK version ${VERSION} already published, skipping publish"
+            echo "already_published=true" >> $GITHUB_OUTPUT
+          else
+            echo "SDK version ${VERSION} not found, will publish"
+            echo "already_published=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Publish SDK to @next
+        if: steps.check-sdk-published.outputs.already_published != 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
