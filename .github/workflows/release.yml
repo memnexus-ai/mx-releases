@@ -108,7 +108,7 @@ jobs:
           echo "✅ SDK version updated to ${{ needs.determine-version.outputs.version }}"
 
       - name: Upload SDK artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sdk-package
           path: packages/sdk/
@@ -133,7 +133,7 @@ jobs:
 
       - name: Download SDK artifact
         if: matrix.package == 'sdk'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: sdk-package
           path: packages/sdk/
@@ -165,7 +165,7 @@ jobs:
           npm pack --dry-run
 
       - name: Upload built package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.package }}-built
           path: packages/${{ matrix.package }}/
@@ -195,7 +195,7 @@ jobs:
         run: npm install -g npm@latest
 
       - name: Download all built packages
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: packages-built/
 
