@@ -184,13 +184,19 @@ jobs:
           name: sdk-built
           path: sdk-built/
 
+      - name: Install dependencies
+        run: |
+          cd sdk-built
+          npm ci || npm install
+
       - name: Publish SDK to @next
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
         run: |
           cd sdk-built
-          npm publish --tag next --access public --provenance
+          # Use --ignore-scripts to skip prepublishOnly since we already built
+          npm publish --tag next --access public --provenance --ignore-scripts
           echo "✅ SDK published to @next"
 
       - name: Verify SDK published
@@ -292,7 +298,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: true
         run: |
           cd cli-built
-          npm publish --tag next --access public --provenance
+          npm publish --tag next --access public --provenance --ignore-scripts
           echo "✅ CLI published to @next"
 
       - name: Publish MCP to @next
@@ -301,7 +307,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: true
         run: |
           cd mcp-built
-          npm publish --tag next --access public --provenance
+          npm publish --tag next --access public --provenance --ignore-scripts
           echo "✅ MCP Server published to @next"
 
       - name: Verify all packages published
