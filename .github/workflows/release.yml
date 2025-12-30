@@ -139,6 +139,7 @@ jobs:
           path: packages/sdk/
 
       - name: Update package version
+        if: matrix.package != 'sdk'  # SDK version is already set in generate-sdk job
         run: |
           cd packages/${{ matrix.package }}
           npm version ${{ needs.determine-version.outputs.version }} --no-git-tag-version
