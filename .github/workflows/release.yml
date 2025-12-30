@@ -101,11 +101,16 @@ jobs:
           cp -r output/typescript/* packages/sdk/
           echo "✅ SDK moved to packages/sdk/"
 
-      - name: Update SDK version
+      - name: Update SDK version and fix repository URL
         run: |
           cd packages/sdk
           npm version ${{ needs.determine-version.outputs.version }} --no-git-tag-version
+          # Fix repository URL for npm provenance verification
+          npm pkg set repository.type=git
+          npm pkg set repository.url="https://github.com/memnexus-ai/mx-releases"
+          npm pkg set repository.directory="packages/sdk"
           echo "✅ SDK version updated to ${{ needs.determine-version.outputs.version }}"
+          echo "✅ Repository URL fixed for provenance"
 
       - name: Upload SDK artifact
         uses: actions/upload-artifact@v4
