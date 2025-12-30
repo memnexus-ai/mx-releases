@@ -515,7 +515,7 @@ jobs:
         run: |
           git add VERSION.yaml CHANGELOG.md
           git commit -m "chore(release): version ${{ needs.determine-version.outputs.version }}"
-          git push origin main
+          git push origin master
 
       - name: Create git tags
         run: |
