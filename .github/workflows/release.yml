@@ -391,35 +391,14 @@ jobs:
           # npm view @memnexus-ai/mcp-server dist-tags  # Disabled until MCP is ready
           echo "✅ SDK promoted to @latest"
 
-  # Job 8: Sync OpenAPI spec to Postman Spec Hub
-  # DISABLED: Requires POSTMAN_API_KEY and POSTMAN_SPEC_ID secrets to be configured
-  sync-postman-spec:
-    name: Sync Postman Spec
-    if: false  # Disabled until Postman secrets are configured
+  # Job 8: Create Postman API and Collection for this version
+  # Creates a new API definition and Collection in Postman for each release
+  # Requires: POSTMAN_API_KEY and POSTMAN_WORKSPACE_ID secrets
+  sync-postman:
+    name: Create Postman API & Collection
     runs-on: ubuntu-latest
-    needs: promote-to-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Sync OpenAPI to Postman Spec Hub
-        uses: postmanlabs/push-openapi-to-postman-spec@v1
-        with:
-          path-to-definition: specs/openapi.yaml
-          postman-api-key: ${{ secrets.POSTMAN_API_KEY }}
-          spec-id: ${{ secrets.POSTMAN_SPEC_ID }}
-          api-path-to-file-name: index.yaml
-
-      - name: Verify spec sync
-        run: echo "✅ OpenAPI spec synced to Postman Spec Hub"
-
-  # Job 9: Update Postman Collection
-  # DISABLED: Requires POSTMAN_API_KEY and POSTMAN_COLLECTION_ID secrets to be configured
-  sync-postman-collection:
-    name: Sync Postman Collection
-    if: false  # Disabled until Postman secrets are configured
-    runs-on: ubuntu-latest
-    needs: promote-to-latest
+    needs: [determine-version, promote-to-latest]
+    if: success()
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -432,37 +411,120 @@ jobs:
       - name: Install openapi-to-postman
         run: npm install -g openapi-to-postmanv2
 
+      - name: Create Postman API for this version
+        id: create-api
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+          POSTMAN_WORKSPACE_ID: ${{ secrets.POSTMAN_WORKSPACE_ID }}
+          VERSION: ${{ needs.determine-version.outputs.version }}
+        run: |
+          # Read OpenAPI spec content
+          SPEC_CONTENT=$(cat specs/openapi.yaml | jq -Rs .)
+
+          # Create API in Postman
+          response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/apis?workspace=${POSTMAN_WORKSPACE_ID}" \
+            -H "X-Api-Key: ${POSTMAN_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"name\": \"MemNexus Core API v${VERSION}\",
+              \"summary\": \"MemNexus Core API - Version ${VERSION}\",
+              \"description\": \"Released on $(date -u +%Y-%m-%d)\"
+            }")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
+            API_ID=$(echo "$body" | jq -r '.api.id')
+            echo "api_id=${API_ID}" >> $GITHUB_OUTPUT
+            echo "✅ Created Postman API: ${API_ID}"
+          else
+            echo "❌ Failed to create Postman API (HTTP $http_code)"
+            echo "$body"
+            exit 1
+          fi
+
+      - name: Add OpenAPI schema to API
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+          API_ID: ${{ steps.create-api.outputs.api_id }}
+          VERSION: ${{ needs.determine-version.outputs.version }}
+        run: |
+          # Create schema version
+          response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/apis/${API_ID}/versions" \
+            -H "X-Api-Key: ${POSTMAN_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\": \"${VERSION}\"}")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
+            VERSION_ID=$(echo "$body" | jq -r '.version.id')
+            echo "✅ Created API version: ${VERSION_ID}"
+
+            # Add schema to version
+            SPEC_CONTENT=$(cat specs/openapi.yaml)
+            response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/apis/${API_ID}/versions/${VERSION_ID}/schemas" \
+              -H "X-Api-Key: ${POSTMAN_API_KEY}" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"type\": \"openapi3\",
+                \"language\": \"yaml\",
+                \"schema\": $(echo "$SPEC_CONTENT" | jq -Rs .)
+              }")
+
+            http_code=$(echo "$response" | tail -n1)
+            if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
+              echo "✅ Added OpenAPI schema to API"
+            else
+              echo "⚠️ Failed to add schema (HTTP $http_code) - continuing anyway"
+            fi
+          else
+            echo "⚠️ Failed to create API version (HTTP $http_code) - continuing anyway"
+          fi
+
       - name: Convert OpenAPI to Postman Collection
         run: |
           openapi2postmanv2 -s specs/openapi.yaml -o postman-collection.json -p
           echo "✅ Converted OpenAPI to Postman Collection"
 
-      - name: Update Postman Collection
+      - name: Create Postman Collection for this version
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+          POSTMAN_WORKSPACE_ID: ${{ secrets.POSTMAN_WORKSPACE_ID }}
+          VERSION: ${{ needs.determine-version.outputs.version }}
         run: |
-          jq -c '{collection: .}' postman-collection.json > /tmp/postman-wrapped.json
+          # Update collection name to include version
+          jq --arg v "$VERSION" '.info.name = "MemNexus Core API v" + $v' postman-collection.json > /tmp/collection-versioned.json
 
-          response=$(curl -X PUT "https://api.getpostman.com/collections/${{ secrets.POSTMAN_COLLECTION_ID }}" \
-            -H "X-Api-Key: ${{ secrets.POSTMAN_API_KEY }}" \
+          # Wrap collection for Postman API
+          jq -c '{collection: .}' /tmp/collection-versioned.json > /tmp/postman-wrapped.json
+
+          # Create collection in workspace
+          response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/collections?workspace=${POSTMAN_WORKSPACE_ID}" \
+            -H "X-Api-Key: ${POSTMAN_API_KEY}" \
             -H "Content-Type: application/json" \
-            -d @/tmp/postman-wrapped.json \
-            -w "\n%{http_code}" \
-            -s)
+            -d @/tmp/postman-wrapped.json)
 
           http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
 
-          if [ "$http_code" -eq 200 ]; then
-            echo "✅ Postman Collection updated successfully"
+          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
+            COLLECTION_ID=$(echo "$body" | jq -r '.collection.id')
+            echo "✅ Created Postman Collection: ${COLLECTION_ID}"
+            echo "📎 View at: https://www.postman.com/collection/${COLLECTION_ID}"
           else
-            echo "❌ Failed to update Postman Collection (HTTP $http_code)"
+            echo "❌ Failed to create Postman Collection (HTTP $http_code)"
+            echo "$body"
             exit 1
           fi
 
-  # Job 10: Create GitHub release and update VERSION.yaml
+  # Job 9: Create GitHub release and update VERSION.yaml
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
-    # NOTE: When Postman sync is enabled, add sync-postman-spec and sync-postman-collection back to needs
-    needs: [determine-version, promote-to-latest]
+    needs: [determine-version, promote-to-latest, sync-postman]
     if: success()
     permissions:
       contents: write
@@ -571,13 +633,12 @@ jobs:
           draft: false
           prerelease: false
 
-  # Job 11: Rollback on failure - deprecate published packages
+  # Job 10: Rollback on failure - deprecate published packages
   rollback-on-failure:
     name: Rollback on Failure
     runs-on: ubuntu-latest
     # NOTE: When CLI/MCP are enabled, add publish-dependent-packages back to needs
-    # NOTE: When Postman sync is enabled, add sync-postman-spec and sync-postman-collection back to needs
-    needs: [determine-version, publish-sdk, promote-to-latest, create-release]
+    needs: [determine-version, publish-sdk, promote-to-latest, sync-postman, create-release]
     if: failure()
     permissions:
       contents: read
