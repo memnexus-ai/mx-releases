@@ -7,9 +7,9 @@ platform: 1.0.0  # Public-facing platform version
 # Generated packages - ALL share the same version (API contract version)
 # This version is embedded in the OpenAPI spec and used by SDK/CLI/MCP
 generated:
-  version: 1.0.0                    # API contract version (what users see)
-  spec_version: 1.0.0               # OpenAPI spec version (same as above)
-  last_updated: "2025-12-17T00:00:00Z"
+  version: 1.1.1
+  spec_version: 1.1.1
+  last_updated: "2025-12-30T19:22:54Z"
   packages:
     sdk:
       package: "@memnexus-ai/sdk"
