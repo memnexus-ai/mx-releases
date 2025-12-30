@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.1.0
+  version: 1.1.1
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
@@ -18,7 +18,7 @@ info:
   x-namespace: memnexus
   x-stability: stable
   x-audience: internal
-  x-generatedAt: '2025-12-16T21:06:53.411Z'
+  x-generatedAt: '2025-12-30T16:45:32.268Z'
   x-environment: development
 servers:
   - url: http://localhost:3000
@@ -1877,7 +1877,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
   /api/memories/search:
     post:
-      summary: Search memories
+      summary: Search all memories
       operationId: searchMemories
       description: >-
         Search memories by content with different modes (unified, content,
