@@ -214,10 +214,13 @@ jobs:
           echo "✅ SDK verified on @next tag"
 
   # Job 5: Build CLI and MCP (can now install SDK from npm)
+  # NOTE: Disabled until CLI and MCP have actual source code
+  # To re-enable: remove the `if: false` condition
   build-dependent-packages:
     name: Build & Test ${{ matrix.package }}
     runs-on: ubuntu-latest
     needs: [determine-version, publish-sdk]
+    if: false  # DISABLED: CLI and MCP packages don't have source code yet
     strategy:
       matrix:
         package: [cli, mcp]
@@ -271,8 +274,10 @@ jobs:
           path: packages/${{ matrix.package }}/
 
   # Job 6: Publish CLI and MCP to @next
+  # DISABLED: CLI and MCP packages don't have source code yet - enable when ready
   publish-dependent-packages:
     name: Publish CLI & MCP to @next
+    if: false  # Disabled until CLI and MCP packages have source code
     runs-on: ubuntu-latest
     needs: [determine-version, build-dependent-packages]
     permissions:
@@ -329,7 +334,8 @@ jobs:
   promote-to-latest:
     name: Promote to @latest
     runs-on: ubuntu-latest
-    needs: [publish-sdk, publish-dependent-packages]
+    # NOTE: When CLI/MCP are enabled, add publish-dependent-packages back to needs
+    needs: [publish-sdk]
     permissions:
       contents: read
       id-token: write
@@ -348,28 +354,29 @@ jobs:
           npm dist-tag add @memnexus-ai/sdk@${{ needs.publish-sdk.outputs.version }} latest
           echo "✅ SDK promoted to @latest"
 
-      - name: Promote CLI to @latest
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          npm dist-tag add @memnexus-ai/cli@${{ needs.publish-dependent-packages.outputs.version }} latest
-          echo "✅ CLI promoted to @latest"
+      # DISABLED: CLI and MCP packages don't have source code yet - enable when ready
+      # - name: Promote CLI to @latest
+      #   env:
+      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      #   run: |
+      #     npm dist-tag add @memnexus-ai/cli@${{ needs.publish-dependent-packages.outputs.version }} latest
+      #     echo "✅ CLI promoted to @latest"
 
-      - name: Promote MCP to @latest
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          npm dist-tag add @memnexus-ai/mcp-server@${{ needs.publish-dependent-packages.outputs.version }} latest
-          echo "✅ MCP Server promoted to @latest"
+      # - name: Promote MCP to @latest
+      #   env:
+      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      #   run: |
+      #     npm dist-tag add @memnexus-ai/mcp-server@${{ needs.publish-dependent-packages.outputs.version }} latest
+      #     echo "✅ MCP Server promoted to @latest"
 
       - name: Verify promotion
         run: |
           sleep 3
           echo "Verifying @latest tags..."
           npm view @memnexus-ai/sdk dist-tags
-          npm view @memnexus-ai/cli dist-tags
-          npm view @memnexus-ai/mcp-server dist-tags
-          echo "✅ All packages promoted to @latest"
+          # npm view @memnexus-ai/cli dist-tags  # Disabled until CLI is ready
+          # npm view @memnexus-ai/mcp-server dist-tags  # Disabled until MCP is ready
+          echo "✅ SDK promoted to @latest"
 
   # Job 8: Sync OpenAPI spec to Postman Spec Hub
   sync-postman-spec:
@@ -552,7 +559,8 @@ jobs:
   rollback-on-failure:
     name: Rollback on Failure
     runs-on: ubuntu-latest
-    needs: [determine-version, publish-sdk, publish-dependent-packages, promote-to-latest, sync-postman-spec, sync-postman-collection, create-release]
+    # NOTE: When CLI/MCP are enabled, add publish-dependent-packages back to needs
+    needs: [determine-version, publish-sdk, promote-to-latest, sync-postman-spec, sync-postman-collection, create-release]
     if: failure()
     permissions:
       contents: read
