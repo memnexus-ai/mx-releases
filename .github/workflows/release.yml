@@ -113,15 +113,11 @@ jobs:
           name: sdk-package
           path: packages/sdk/
 
-  # Job 3: Build and test all packages
-  build-all-packages:
-    name: Build & Test ${{ matrix.package }}
+  # Job 3: Build and test SDK
+  build-sdk:
+    name: Build & Test SDK
     runs-on: ubuntu-latest
     needs: [determine-version, generate-sdk]
-    strategy:
-      matrix:
-        package: [sdk, cli, mcp]
-      fail-fast: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -132,22 +128,111 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Download SDK artifact
-        if: matrix.package == 'sdk'
         uses: actions/download-artifact@v4
         with:
           name: sdk-package
           path: packages/sdk/
 
+      - name: Install dependencies
+        run: |
+          cd packages/sdk
+          npm ci || npm install
+
+      - name: Build package
+        run: |
+          cd packages/sdk
+          npm run build
+
+      - name: Run tests
+        if: github.event.inputs.skip_tests != 'true'
+        run: |
+          cd packages/sdk
+          npm test --passWithNoTests || echo "No tests found, continuing..."
+
+      - name: Check package contents
+        run: |
+          cd packages/sdk
+          npm pack --dry-run
+
+      - name: Upload built SDK
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-built
+          path: packages/sdk/
+
+  # Job 4: Publish SDK to @next (must happen before CLI/MCP can install it)
+  publish-sdk:
+    name: Publish SDK to @next
+    runs-on: ubuntu-latest
+    needs: [determine-version, build-sdk]
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      version: ${{ needs.determine-version.outputs.version }}
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@memnexus-ai'
+
+      - name: Download SDK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sdk-built
+          path: sdk-built/
+
+      - name: Publish SDK to @next
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: |
+          cd sdk-built
+          npm publish --tag next --access public --provenance
+          echo "✅ SDK published to @next"
+
+      - name: Verify SDK published
+        run: |
+          sleep 5  # Give npm registry time to propagate
+          npm view @memnexus-ai/sdk@${{ needs.determine-version.outputs.version }} version
+          echo "✅ SDK verified on @next tag"
+
+  # Job 5: Build CLI and MCP (can now install SDK from npm)
+  build-dependent-packages:
+    name: Build & Test ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    needs: [determine-version, publish-sdk]
+    strategy:
+      matrix:
+        package: [cli, mcp]
+      fail-fast: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Update package version
-        if: matrix.package != 'sdk'  # SDK version is already set in generate-sdk job
         run: |
           cd packages/${{ matrix.package }}
           npm version ${{ needs.determine-version.outputs.version }} --no-git-tag-version
 
+      - name: Update SDK dependency to use @next version
+        run: |
+          cd packages/${{ matrix.package }}
+          # Update the SDK dependency to the exact version we just published
+          npm pkg set dependencies.@memnexus-ai/sdk=${{ needs.determine-version.outputs.version }}
+          echo "✅ Updated SDK dependency to ${{ needs.determine-version.outputs.version }}"
+
       - name: Install dependencies
         run: |
           cd packages/${{ matrix.package }}
-          npm ci || npm install
+          npm install
 
       - name: Build package
         run: |
@@ -171,20 +256,17 @@ jobs:
           name: ${{ matrix.package }}-built
           path: packages/${{ matrix.package }}/
 
-  # Job 4: Publish all packages to @next tag
-  publish-to-next:
-    name: Publish to @next
+  # Job 6: Publish CLI and MCP to @next
+  publish-dependent-packages:
+    name: Publish CLI & MCP to @next
     runs-on: ubuntu-latest
-    needs: [determine-version, build-all-packages]
+    needs: [determine-version, build-dependent-packages]
     permissions:
       contents: read
       id-token: write
     outputs:
       version: ${{ needs.determine-version.outputs.version }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -192,51 +274,48 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           scope: '@memnexus-ai'
 
-      - name: Ensure latest npm
-        run: npm install -g npm@latest
-
-      - name: Download all built packages
+      - name: Download CLI artifact
         uses: actions/download-artifact@v4
         with:
-          path: packages-built/
+          name: cli-built
+          path: cli-built/
 
-      - name: Publish SDK to @next
-        env:
-          NPM_CONFIG_PROVENANCE: true
-        run: |
-          cd packages-built/sdk-built
-          npm publish --tag next --access public --provenance
-          echo "✅ SDK published to @next"
+      - name: Download MCP artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mcp-built
+          path: mcp-built/
 
       - name: Publish CLI to @next
         env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
         run: |
-          cd packages-built/cli-built
+          cd cli-built
           npm publish --tag next --access public --provenance
           echo "✅ CLI published to @next"
 
       - name: Publish MCP to @next
         env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
         run: |
-          cd packages-built/mcp-built
+          cd mcp-built
           npm publish --tag next --access public --provenance
           echo "✅ MCP Server published to @next"
 
       - name: Verify all packages published
         run: |
           sleep 5  # Give npm registry time to propagate
-          npm view @memnexus-ai/sdk@${{ needs.determine-version.outputs.version }} version
           npm view @memnexus-ai/cli@${{ needs.determine-version.outputs.version }} version
           npm view @memnexus-ai/mcp-server@${{ needs.determine-version.outputs.version }} version
-          echo "✅ All packages verified on @next tag"
+          echo "✅ CLI and MCP verified on @next tag"
 
-  # Job 5: Promote all packages to @latest atomically
+  # Job 7: Promote all packages to @latest atomically
   promote-to-latest:
     name: Promote to @latest
     runs-on: ubuntu-latest
-    needs: publish-to-next
+    needs: [publish-sdk, publish-dependent-packages]
     permissions:
       contents: read
       id-token: write
@@ -249,18 +328,24 @@ jobs:
           scope: '@memnexus-ai'
 
       - name: Promote SDK to @latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          npm dist-tag add @memnexus-ai/sdk@${{ needs.publish-to-next.outputs.version }} latest
+          npm dist-tag add @memnexus-ai/sdk@${{ needs.publish-sdk.outputs.version }} latest
           echo "✅ SDK promoted to @latest"
 
       - name: Promote CLI to @latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          npm dist-tag add @memnexus-ai/cli@${{ needs.publish-to-next.outputs.version }} latest
+          npm dist-tag add @memnexus-ai/cli@${{ needs.publish-dependent-packages.outputs.version }} latest
           echo "✅ CLI promoted to @latest"
 
       - name: Promote MCP to @latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          npm dist-tag add @memnexus-ai/mcp-server@${{ needs.publish-to-next.outputs.version }} latest
+          npm dist-tag add @memnexus-ai/mcp-server@${{ needs.publish-dependent-packages.outputs.version }} latest
           echo "✅ MCP Server promoted to @latest"
 
       - name: Verify promotion
@@ -272,7 +357,7 @@ jobs:
           npm view @memnexus-ai/mcp-server dist-tags
           echo "✅ All packages promoted to @latest"
 
-  # Job 6: Sync OpenAPI spec to Postman Spec Hub
+  # Job 8: Sync OpenAPI spec to Postman Spec Hub
   sync-postman-spec:
     name: Sync Postman Spec
     runs-on: ubuntu-latest
@@ -293,7 +378,7 @@ jobs:
       - name: Verify spec sync
         run: echo "✅ OpenAPI spec synced to Postman Spec Hub"
 
-  # Job 7: Update Postman Collection
+  # Job 9: Update Postman Collection
   sync-postman-collection:
     name: Sync Postman Collection
     runs-on: ubuntu-latest
@@ -336,7 +421,7 @@ jobs:
             exit 1
           fi
 
-  # Job 8: Create GitHub release and update VERSION.yaml
+  # Job 10: Create GitHub release and update VERSION.yaml
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
@@ -449,11 +534,11 @@ jobs:
           draft: false
           prerelease: false
 
-  # Job 9: Rollback on failure - deprecate published packages
+  # Job 11: Rollback on failure - deprecate published packages
   rollback-on-failure:
     name: Rollback on Failure
     runs-on: ubuntu-latest
-    needs: [determine-version, publish-to-next, promote-to-latest, sync-postman-spec, sync-postman-collection, create-release]
+    needs: [determine-version, publish-sdk, publish-dependent-packages, promote-to-latest, sync-postman-spec, sync-postman-collection, create-release]
     if: failure()
     permissions:
       contents: read
