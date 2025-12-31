@@ -3,7 +3,7 @@ name: Release Pipeline
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - 'specs/openapi.yaml'
       - 'liblab.config.json'
