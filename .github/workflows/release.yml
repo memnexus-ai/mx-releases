@@ -391,11 +391,11 @@ jobs:
           # npm view @memnexus-ai/mcp-server dist-tags  # Disabled until MCP is ready
           echo "✅ SDK promoted to @latest"
 
-  # Job 8: Create Postman API and Collection for this version
-  # Creates a new API definition and Collection in Postman for each release
+  # Job 8: Create Postman Spec and Collection for this version
+  # Creates a new API spec in Postman Spec Hub and Collection for each release
   # Requires: POSTMAN_API_KEY and POSTMAN_WORKSPACE_ID secrets
   sync-postman:
-    name: Create Postman API & Collection
+    name: Create Postman Spec & Collection
     runs-on: ubuntu-latest
     needs: [determine-version, promote-to-latest]
     if: success()
@@ -408,117 +408,88 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install openapi-to-postman
-        run: npm install -g openapi-to-postmanv2
-
-      - name: Create Postman API for this version
-        id: create-api
+      - name: Create Postman Spec in Spec Hub
+        id: create-spec
         env:
           POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
           POSTMAN_WORKSPACE_ID: ${{ secrets.POSTMAN_WORKSPACE_ID }}
           VERSION: ${{ needs.determine-version.outputs.version }}
         run: |
-          # Create API in Postman (v10 API requires workspaceId in body)
-          response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/apis" \
+          # Read the OpenAPI spec content
+          SPEC_CONTENT=$(cat specs/openapi.yaml)
+
+          # Create the request payload with spec name, type, and file content
+          # Using jq to properly escape the YAML content as JSON string
+          PAYLOAD=$(jq -n \
+            --arg name "MemNexus Core API v${VERSION}" \
+            --arg type "OPENAPI:3.0" \
+            --arg path "openapi.yaml" \
+            --arg content "$SPEC_CONTENT" \
+            '{
+              name: $name,
+              type: $type,
+              files: [
+                {
+                  path: $path,
+                  content: $content
+                }
+              ]
+            }')
+
+          # Create Spec in Postman Spec Hub
+          response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/specs?workspaceId=${POSTMAN_WORKSPACE_ID}" \
             -H "X-Api-Key: ${POSTMAN_API_KEY}" \
-            -H "Accept: application/vnd.api.v10+json" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
+            SPEC_ID=$(echo "$body" | jq -r '.id')
+            echo "spec_id=${SPEC_ID}" >> $GITHUB_OUTPUT
+            echo "✅ Created Postman Spec in Spec Hub: ${SPEC_ID}"
+            echo "📎 Spec name: MemNexus Core API v${VERSION}"
+          else
+            echo "❌ Failed to create Postman Spec (HTTP $http_code)"
+            echo "$body"
+            exit 1
+          fi
+
+      - name: Generate Collection from Spec
+        id: generate-collection
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+          SPEC_ID: ${{ steps.create-spec.outputs.spec_id }}
+          VERSION: ${{ needs.determine-version.outputs.version }}
+        run: |
+          # Generate a Postman Collection from the Spec
+          response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/specs/${SPEC_ID}/generations/collection" \
+            -H "X-Api-Key: ${POSTMAN_API_KEY}" \
             -H "Content-Type: application/json" \
             -d "{
-              \"name\": \"MemNexus Core API v${VERSION}\",
-              \"summary\": \"MemNexus Core API - Version ${VERSION}\",
-              \"description\": \"Released on $(date -u +%Y-%m-%d)\",
-              \"workspaceId\": \"${POSTMAN_WORKSPACE_ID}\"
+              \"name\": \"MemNexus Core API v${VERSION}\"
             }")
 
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | sed '$d')
 
-          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
-            API_ID=$(echo "$body" | jq -r '.id')
-            echo "api_id=${API_ID}" >> $GITHUB_OUTPUT
-            echo "✅ Created Postman API: ${API_ID}"
-          else
-            echo "❌ Failed to create Postman API (HTTP $http_code)"
-            echo "$body"
-            exit 1
-          fi
-
-      - name: Add OpenAPI schema to API
-        env:
-          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
-          API_ID: ${{ steps.create-api.outputs.api_id }}
-          VERSION: ${{ needs.determine-version.outputs.version }}
-        run: |
-          # Create schema version (v10 API)
-          response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/apis/${API_ID}/versions" \
-            -H "X-Api-Key: ${POSTMAN_API_KEY}" \
-            -H "Accept: application/vnd.api.v10+json" \
-            -H "Content-Type: application/json" \
-            -d "{\"name\": \"${VERSION}\"}")
-
-          http_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | sed '$d')
-
-          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
-            VERSION_ID=$(echo "$body" | jq -r '.id')
-            echo "✅ Created API version: ${VERSION_ID}"
-
-            # Add schema to version (v10 API)
-            SPEC_CONTENT=$(cat specs/openapi.yaml)
-            response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/apis/${API_ID}/versions/${VERSION_ID}/schemas" \
-              -H "X-Api-Key: ${POSTMAN_API_KEY}" \
-              -H "Accept: application/vnd.api.v10+json" \
-              -H "Content-Type: application/json" \
-              -d "{
-                \"type\": \"openapi3\",
-                \"language\": \"yaml\",
-                \"schema\": $(echo "$SPEC_CONTENT" | jq -Rs .)
-              }")
-
-            http_code=$(echo "$response" | tail -n1)
-            if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
-              echo "✅ Added OpenAPI schema to API"
+          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ] || [ "$http_code" -eq 202 ]; then
+            # The response may contain a task ID for async generation or the collection directly
+            COLLECTION_ID=$(echo "$body" | jq -r '.collection.id // .id // empty')
+            if [ -n "$COLLECTION_ID" ]; then
+              echo "collection_id=${COLLECTION_ID}" >> $GITHUB_OUTPUT
+              echo "✅ Generated Postman Collection from Spec: ${COLLECTION_ID}"
+              echo "📎 View at: https://www.postman.com/collection/${COLLECTION_ID}"
             else
-              echo "⚠️ Failed to add schema (HTTP $http_code) - continuing anyway"
+              echo "✅ Collection generation initiated (may be async)"
+              echo "$body" | jq .
             fi
           else
-            echo "⚠️ Failed to create API version (HTTP $http_code) - continuing anyway"
-          fi
-
-      - name: Convert OpenAPI to Postman Collection
-        run: |
-          openapi2postmanv2 -s specs/openapi.yaml -o postman-collection.json -p
-          echo "✅ Converted OpenAPI to Postman Collection"
-
-      - name: Create Postman Collection for this version
-        env:
-          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
-          POSTMAN_WORKSPACE_ID: ${{ secrets.POSTMAN_WORKSPACE_ID }}
-          VERSION: ${{ needs.determine-version.outputs.version }}
-        run: |
-          # Update collection name to include version
-          jq --arg v "$VERSION" '.info.name = "MemNexus Core API v" + $v' postman-collection.json > /tmp/collection-versioned.json
-
-          # Wrap collection for Postman API
-          jq -c '{collection: .}' /tmp/collection-versioned.json > /tmp/postman-wrapped.json
-
-          # Create collection in workspace
-          response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/collections?workspace=${POSTMAN_WORKSPACE_ID}" \
-            -H "X-Api-Key: ${POSTMAN_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d @/tmp/postman-wrapped.json)
-
-          http_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | sed '$d')
-
-          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
-            COLLECTION_ID=$(echo "$body" | jq -r '.collection.id')
-            echo "✅ Created Postman Collection: ${COLLECTION_ID}"
-            echo "📎 View at: https://www.postman.com/collection/${COLLECTION_ID}"
-          else
-            echo "❌ Failed to create Postman Collection (HTTP $http_code)"
+            echo "⚠️ Failed to generate Collection from Spec (HTTP $http_code)"
             echo "$body"
-            exit 1
+            echo "The Spec was created successfully, but Collection generation failed."
+            echo "You can generate the Collection manually from Postman Spec Hub."
           fi
 
   # Job 9: Create GitHub release and update VERSION.yaml
