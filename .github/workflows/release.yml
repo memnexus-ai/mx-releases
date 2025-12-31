@@ -582,57 +582,64 @@ jobs:
 
       - name: Create git tags
         run: |
-          git tag -a "platform-v${{ needs.determine-version.outputs.version }}" -m "Platform release v${{ needs.determine-version.outputs.version }}"
-          git tag -a "sdk-v${{ needs.determine-version.outputs.version }}" -m "SDK release v${{ needs.determine-version.outputs.version }}"
-          git tag -a "cli-v${{ needs.determine-version.outputs.version }}" -m "CLI release v${{ needs.determine-version.outputs.version }}"
-          git tag -a "mcp-v${{ needs.determine-version.outputs.version }}" -m "MCP Server release v${{ needs.determine-version.outputs.version }}"
-          git push origin --tags
-          echo "✅ Git tags created and pushed"
+          VERSION="${{ needs.determine-version.outputs.version }}"
+
+          # Create tags only if they don't exist
+          for tag in "platform-v${VERSION}" "sdk-v${VERSION}" "cli-v${VERSION}" "mcp-v${VERSION}"; do
+            if git rev-parse "$tag" >/dev/null 2>&1; then
+              echo "⏭️ Tag $tag already exists, skipping"
+            else
+              git tag -a "$tag" -m "Release $tag"
+              echo "✅ Created tag $tag"
+            fi
+          done
+
+          git push origin --tags || true
+          echo "✅ Git tags pushed"
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: platform-v${{ needs.determine-version.outputs.version }}
-          release_name: 'MemNexus Platform v${{ needs.determine-version.outputs.version }}'
-          body: |
-            ## MemNexus Platform v${{ needs.determine-version.outputs.version }}
+          VERSION: ${{ needs.determine-version.outputs.version }}
+        run: |
+          TAG="platform-v${VERSION}"
 
-            Version is automatically managed by mx-core-api based on OpenAPI spec changes.
+          # Check if release already exists
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "⏭️ Release $TAG already exists, skipping"
+          else
+            gh release create "$TAG" \
+              --title "MemNexus Platform v${VERSION}" \
+              --notes "## MemNexus Platform v${VERSION}
 
-            ### Published Packages
+          Version is automatically managed by mx-core-api based on OpenAPI spec changes.
 
-            All packages share version **${{ needs.determine-version.outputs.version }}** and are published to npm:
+          ### Published Packages
 
-            - **SDK**: [`@memnexus-ai/sdk@${{ needs.determine-version.outputs.version }}`](https://www.npmjs.com/package/@memnexus-ai/sdk)
-            - **CLI**: [`@memnexus-ai/cli@${{ needs.determine-version.outputs.version }}`](https://www.npmjs.com/package/@memnexus-ai/cli)
-            - **MCP Server**: [`@memnexus-ai/mcp-server@${{ needs.determine-version.outputs.version }}`](https://www.npmjs.com/package/@memnexus-ai/mcp-server)
+          All packages share version **${VERSION}** and are published to npm:
 
-            ### Installation
+          - **SDK**: [\`@memnexus-ai/sdk@${VERSION}\`](https://www.npmjs.com/package/@memnexus-ai/sdk)
+          - **CLI**: [\`@memnexus-ai/cli@${VERSION}\`](https://www.npmjs.com/package/@memnexus-ai/cli) _(coming soon)_
+          - **MCP Server**: [\`@memnexus-ai/mcp-server@${VERSION}\`](https://www.npmjs.com/package/@memnexus-ai/mcp-server) _(coming soon)_
 
-            ```bash
-            # SDK
-            npm install @memnexus-ai/sdk@${{ needs.determine-version.outputs.version }}
+          ### Installation
 
-            # CLI
-            npm install -g @memnexus-ai/cli@${{ needs.determine-version.outputs.version }}
+          \`\`\`bash
+          # SDK
+          npm install @memnexus-ai/sdk@${VERSION}
+          \`\`\`
 
-            # MCP Server
-            npm install @memnexus-ai/mcp-server@${{ needs.determine-version.outputs.version }}
-            ```
+          ### Changes
 
-            ### Changes
+          See [CHANGELOG.md](https://github.com/memnexus-ai/mx-releases/blob/main/CHANGELOG.md) for detailed changes.
 
-            See [CHANGELOG.md](https://github.com/memnexus-ai/mx-releases/blob/main/CHANGELOG.md) for detailed changes.
+          ### Documentation
 
-            ### Documentation
-
-            - [OpenAPI Spec](https://github.com/memnexus-ai/mx-releases/blob/main/specs/openapi.yaml)
-            - [Postman Collection](https://www.postman.com/memnexus)
-            - [SDK Documentation](https://github.com/memnexus-ai/mx-releases/tree/main/packages/sdk)
-          draft: false
-          prerelease: false
+          - [OpenAPI Spec](https://github.com/memnexus-ai/mx-releases/blob/main/specs/openapi.yaml)
+          - [Postman Collection](https://www.postman.com/memnexus)
+          - [SDK Documentation](https://github.com/memnexus-ai/mx-releases/tree/main/packages/sdk)"
+            echo "✅ GitHub Release created for $TAG"
+          fi
 
   # Job 10: Rollback on failure - deprecate published packages
   rollback-on-failure:
