@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Generated packages (SDK, CLI, MCP Server) updated to 1.1.1
 - OpenAPI specification synced
 
+## [1.1.1] - 2025-12-31
+
+### Changed
+- Platform release 1.1.1
+- Generated packages (SDK, CLI, MCP Server) updated to 1.1.1
+- OpenAPI specification synced
+
 ## [1.1.1] - 2025-12-30
 
 ### Changed
