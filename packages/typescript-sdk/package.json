@@ -1,5 +1,5 @@
 {
-  "name": "@memnexus-ai/sdk",
+  "name": "@memnexus-ai/typescript-sdk",
   "version": "1.0.0",
   "description": "TypeScript SDK for the MemNexus API - Memory management for AI agents",
   "main": "dist/index.js",
@@ -13,7 +13,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/memnexus-ai/mx-releases.git",
-    "directory": "packages/sdk"
+    "directory": "packages/typescript-sdk"
   },
   "keywords": [
     "memnexus",
@@ -30,7 +30,7 @@
   "bugs": {
     "url": "https://github.com/memnexus-ai/mx-releases/issues"
   },
-  "homepage": "https://github.com/memnexus-ai/mx-releases/tree/main/packages/sdk#readme",
+  "homepage": "https://github.com/memnexus-ai/mx-releases/tree/main/packages/typescript-sdk#readme",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"

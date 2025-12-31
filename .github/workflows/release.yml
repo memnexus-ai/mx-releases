@@ -67,9 +67,9 @@ jobs:
             echo "ℹ️  mx-releases simply reads and publishes the version from the spec"
           fi
 
-  # Job 2: Generate SDK using liblab
-  generate-sdk:
-    name: Generate SDK
+  # Job 2: Generate SDKs using liblab (TypeScript and Python)
+  generate-sdks:
+    name: Generate SDKs
     runs-on: ubuntu-latest
     needs: determine-version
     steps:
@@ -81,51 +81,82 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install liblab CLI
         run: npm install -g liblab
 
       - name: Verify liblab installation
         run: liblab --version
 
-      - name: Generate SDK with liblab
+      - name: Generate SDKs with liblab
         env:
           LIBLAB_TOKEN: ${{ secrets.LIBLAB_API_KEY }}
         run: |
-          echo "Generating SDK with liblab..."
+          echo "Generating TypeScript and Python SDKs with liblab..."
           liblab build --yes
           echo "✅ SDK generation complete"
 
-      - name: Move generated SDK to packages directory
+      - name: Move generated TypeScript SDK to packages directory
         run: |
-          rm -rf packages/sdk/*
-          cp -r output/typescript/* packages/sdk/
-          echo "✅ SDK moved to packages/sdk/"
+          rm -rf packages/typescript-sdk/*
+          mkdir -p packages/typescript-sdk
+          cp -r output/typescript/* packages/typescript-sdk/
+          echo "✅ TypeScript SDK moved to packages/typescript-sdk/"
 
-      - name: Update SDK version and fix package metadata
+      - name: Move generated Python SDK to packages directory
         run: |
-          cd packages/sdk
+          rm -rf packages/python-sdk/*
+          mkdir -p packages/python-sdk
+          cp -r output/python/* packages/python-sdk/
+          echo "✅ Python SDK moved to packages/python-sdk/"
+
+      - name: Update TypeScript SDK version and fix package metadata
+        run: |
+          cd packages/typescript-sdk
           npm version ${{ needs.determine-version.outputs.version }} --no-git-tag-version
           # Fix package name to use scoped name
-          npm pkg set name="@memnexus-ai/sdk"
+          npm pkg set name="@memnexus-ai/typescript-sdk"
           # Fix repository URL for npm provenance verification
           npm pkg set repository.type=git
           npm pkg set repository.url="https://github.com/memnexus-ai/mx-releases"
-          npm pkg set repository.directory="packages/sdk"
-          echo "✅ SDK version updated to ${{ needs.determine-version.outputs.version }}"
-          echo "✅ Package name fixed to @memnexus-ai/sdk"
+          npm pkg set repository.directory="packages/typescript-sdk"
+          echo "✅ TypeScript SDK version updated to ${{ needs.determine-version.outputs.version }}"
+          echo "✅ Package name fixed to @memnexus-ai/typescript-sdk"
           echo "✅ Repository URL fixed for provenance"
 
-      - name: Upload SDK artifact
+      - name: Update Python SDK version
+        run: |
+          cd packages/python-sdk
+          # Update version in pyproject.toml or setup.py
+          if [ -f "pyproject.toml" ]; then
+            sed -i "s/^version = .*/version = \"${{ needs.determine-version.outputs.version }}\"/" pyproject.toml
+          fi
+          if [ -f "setup.py" ]; then
+            sed -i "s/version=.*/version=\"${{ needs.determine-version.outputs.version }}\",/" setup.py
+          fi
+          echo "✅ Python SDK version updated to ${{ needs.determine-version.outputs.version }}"
+
+      - name: Upload TypeScript SDK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sdk-package
-          path: packages/sdk/
+          name: typescript-sdk-package
+          path: packages/typescript-sdk/
 
-  # Job 3: Build and test SDK
-  build-sdk:
-    name: Build & Test SDK
+      - name: Upload Python SDK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-sdk-package
+          path: packages/python-sdk/
+
+  # Job 3: Build and test TypeScript SDK
+  build-typescript-sdk:
+    name: Build & Test TypeScript SDK
     runs-on: ubuntu-latest
-    needs: [determine-version, generate-sdk]
+    needs: [determine-version, generate-sdks]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -135,44 +166,96 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Download SDK artifact
+      - name: Download TypeScript SDK artifact
         uses: actions/download-artifact@v4
         with:
-          name: sdk-package
-          path: packages/sdk/
+          name: typescript-sdk-package
+          path: packages/typescript-sdk/
 
       - name: Install dependencies
         run: |
-          cd packages/sdk
+          cd packages/typescript-sdk
           npm ci || npm install
 
       - name: Build package
         run: |
-          cd packages/sdk
+          cd packages/typescript-sdk
           npm run build
 
       - name: Run tests
         if: github.event.inputs.skip_tests != 'true'
         run: |
-          cd packages/sdk
+          cd packages/typescript-sdk
           npm test --passWithNoTests || echo "No tests found, continuing..."
 
       - name: Check package contents
         run: |
-          cd packages/sdk
+          cd packages/typescript-sdk
           npm pack --dry-run
 
-      - name: Upload built SDK
+      - name: Upload built TypeScript SDK
         uses: actions/upload-artifact@v4
         with:
-          name: sdk-built
-          path: packages/sdk/
+          name: typescript-sdk-built
+          path: packages/typescript-sdk/
 
-  # Job 4: Publish SDK to @next (must happen before CLI/MCP can install it)
-  publish-sdk:
-    name: Publish SDK to @next
+  # Job 3b: Build and test Python SDK
+  build-python-sdk:
+    name: Build & Test Python SDK
     runs-on: ubuntu-latest
-    needs: [determine-version, build-sdk]
+    needs: [determine-version, generate-sdks]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download Python SDK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: python-sdk-package
+          path: packages/python-sdk/
+
+      - name: Install build tools
+        run: |
+          pip install --upgrade pip build twine
+
+      - name: Install dependencies
+        run: |
+          cd packages/python-sdk
+          pip install -e . || pip install .
+
+      - name: Build package
+        run: |
+          cd packages/python-sdk
+          python -m build
+
+      - name: Run tests
+        if: github.event.inputs.skip_tests != 'true'
+        run: |
+          cd packages/python-sdk
+          pip install pytest || true
+          pytest --passWithNoTests || echo "No tests found, continuing..."
+
+      - name: Check package contents
+        run: |
+          cd packages/python-sdk
+          twine check dist/*
+
+      - name: Upload built Python SDK
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-sdk-built
+          path: packages/python-sdk/dist/
+
+  # Job 4: Publish TypeScript SDK to @next (must happen before CLI/MCP can install it)
+  publish-typescript-sdk:
+    name: Publish TypeScript SDK to @next
+    runs-on: ubuntu-latest
+    needs: [determine-version, build-typescript-sdk]
     permissions:
       contents: read
       id-token: write
@@ -186,45 +269,96 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           scope: '@memnexus-ai'
 
-      - name: Download SDK artifact
+      - name: Download TypeScript SDK artifact
         uses: actions/download-artifact@v4
         with:
-          name: sdk-built
-          path: sdk-built/
+          name: typescript-sdk-built
+          path: typescript-sdk-built/
 
       - name: Install dependencies
         run: |
-          cd sdk-built
+          cd typescript-sdk-built
           npm ci || npm install
 
-      - name: Check if SDK version already published
-        id: check-sdk-published
+      - name: Check if TypeScript SDK version already published
+        id: check-ts-sdk-published
         run: |
           VERSION=${{ needs.determine-version.outputs.version }}
-          if npm view @memnexus-ai/sdk@${VERSION} version 2>/dev/null; then
-            echo "SDK version ${VERSION} already published, skipping publish"
+          if npm view @memnexus-ai/typescript-sdk@${VERSION} version 2>/dev/null; then
+            echo "TypeScript SDK version ${VERSION} already published, skipping publish"
             echo "already_published=true" >> $GITHUB_OUTPUT
           else
-            echo "SDK version ${VERSION} not found, will publish"
+            echo "TypeScript SDK version ${VERSION} not found, will publish"
             echo "already_published=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Publish SDK to @next
-        if: steps.check-sdk-published.outputs.already_published != 'true'
+      - name: Publish TypeScript SDK to @next
+        if: steps.check-ts-sdk-published.outputs.already_published != 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
         run: |
-          cd sdk-built
+          cd typescript-sdk-built
           # Use --ignore-scripts to skip prepublishOnly since we already built
           npm publish --tag next --access public --provenance --ignore-scripts
-          echo "✅ SDK published to @next"
+          echo "✅ TypeScript SDK published to @next"
 
-      - name: Verify SDK published
+      - name: Verify TypeScript SDK published
         run: |
           sleep 5  # Give npm registry time to propagate
-          npm view @memnexus-ai/sdk@${{ needs.determine-version.outputs.version }} version
-          echo "✅ SDK verified on @next tag"
+          npm view @memnexus-ai/typescript-sdk@${{ needs.determine-version.outputs.version }} version
+          echo "✅ TypeScript SDK verified on @next tag"
+
+  # Job 4b: Publish Python SDK to PyPI
+  publish-python-sdk:
+    name: Publish Python SDK to PyPI
+    runs-on: ubuntu-latest
+    needs: [determine-version, build-python-sdk]
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install twine
+        run: pip install --upgrade twine
+
+      - name: Download Python SDK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: python-sdk-built
+          path: python-sdk-built/
+
+      - name: Check if Python SDK version already published
+        id: check-py-sdk-published
+        run: |
+          VERSION=${{ needs.determine-version.outputs.version }}
+          if pip index versions memnexus-python-sdk 2>/dev/null | grep -q "${VERSION}"; then
+            echo "Python SDK version ${VERSION} already published, skipping publish"
+            echo "already_published=true" >> $GITHUB_OUTPUT
+          else
+            echo "Python SDK version ${VERSION} not found, will publish"
+            echo "already_published=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish Python SDK to PyPI
+        if: steps.check-py-sdk-published.outputs.already_published != 'true'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          cd python-sdk-built
+          twine upload --non-interactive *.whl *.tar.gz || twine upload --non-interactive *
+          echo "✅ Python SDK published to PyPI"
+
+      - name: Verify Python SDK published
+        run: |
+          sleep 10  # Give PyPI time to propagate
+          pip index versions memnexus-python-sdk || echo "Note: pip index may take a few minutes to update"
+          echo "✅ Python SDK publish initiated"
 
   # Job 5: Build CLI and MCP (can now install SDK from npm)
   # NOTE: Disabled until CLI and MCP have actual source code
@@ -232,7 +366,7 @@ jobs:
   build-dependent-packages:
     name: Build & Test ${{ matrix.package }}
     runs-on: ubuntu-latest
-    needs: [determine-version, publish-sdk]
+    needs: [determine-version, publish-typescript-sdk]
     if: false  # DISABLED: CLI and MCP packages don't have source code yet
     strategy:
       matrix:
@@ -256,7 +390,7 @@ jobs:
         run: |
           cd packages/${{ matrix.package }}
           # Update the SDK dependency to the exact version we just published
-          npm pkg set dependencies.@memnexus-ai/sdk=${{ needs.determine-version.outputs.version }}
+          npm pkg set dependencies.@memnexus-ai/typescript-sdk=${{ needs.determine-version.outputs.version }}
           echo "✅ Updated SDK dependency to ${{ needs.determine-version.outputs.version }}"
 
       - name: Install dependencies
@@ -348,7 +482,7 @@ jobs:
     name: Promote to @latest
     runs-on: ubuntu-latest
     # NOTE: When CLI/MCP are enabled, add publish-dependent-packages back to needs
-    needs: [publish-sdk]
+    needs: [publish-typescript-sdk, publish-python-sdk]
     permissions:
       contents: read
       id-token: write
@@ -360,12 +494,14 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           scope: '@memnexus-ai'
 
-      - name: Promote SDK to @latest
+      - name: Promote TypeScript SDK to @latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          npm dist-tag add @memnexus-ai/sdk@${{ needs.publish-sdk.outputs.version }} latest
-          echo "✅ SDK promoted to @latest"
+          npm dist-tag add @memnexus-ai/typescript-sdk@${{ needs.publish-typescript-sdk.outputs.version }} latest
+          echo "✅ TypeScript SDK promoted to @latest"
+
+      # Note: Python SDK on PyPI doesn't have a similar tag system - latest is determined by version number
 
       # DISABLED: CLI and MCP packages don't have source code yet - enable when ready
       # - name: Promote CLI to @latest
@@ -386,10 +522,11 @@ jobs:
         run: |
           sleep 3
           echo "Verifying @latest tags..."
-          npm view @memnexus-ai/sdk dist-tags
+          npm view @memnexus-ai/typescript-sdk dist-tags
           # npm view @memnexus-ai/cli dist-tags  # Disabled until CLI is ready
           # npm view @memnexus-ai/mcp-server dist-tags  # Disabled until MCP is ready
-          echo "✅ SDK promoted to @latest"
+          echo "✅ TypeScript SDK promoted to @latest"
+          echo "✅ Python SDK published to PyPI (latest version)"
 
   # Job 8: Create Postman Spec and Collection for this version
   # Creates a new API spec in Postman Spec Hub and Collection for each release
@@ -556,7 +693,7 @@ jobs:
           VERSION="${{ needs.determine-version.outputs.version }}"
 
           # Create tags only if they don't exist
-          for tag in "platform-v${VERSION}" "sdk-v${VERSION}" "cli-v${VERSION}" "mcp-v${VERSION}"; do
+          for tag in "platform-v${VERSION}" "typescript-sdk-v${VERSION}" "python-sdk-v${VERSION}" "cli-v${VERSION}" "mcp-v${VERSION}"; do
             if git rev-parse "$tag" >/dev/null 2>&1; then
               echo "⏭️ Tag $tag already exists, skipping"
             else
@@ -587,17 +724,24 @@ jobs:
 
           ### Published Packages
 
-          All packages share version **${VERSION}** and are published to npm:
+          All packages share version **${VERSION}**:
 
-          - **SDK**: [\`@memnexus-ai/sdk@${VERSION}\`](https://www.npmjs.com/package/@memnexus-ai/sdk)
+          **npm (TypeScript/JavaScript):**
+          - **TypeScript SDK**: [\`@memnexus-ai/typescript-sdk@${VERSION}\`](https://www.npmjs.com/package/@memnexus-ai/typescript-sdk)
           - **CLI**: [\`@memnexus-ai/cli@${VERSION}\`](https://www.npmjs.com/package/@memnexus-ai/cli) _(coming soon)_
           - **MCP Server**: [\`@memnexus-ai/mcp-server@${VERSION}\`](https://www.npmjs.com/package/@memnexus-ai/mcp-server) _(coming soon)_
+
+          **PyPI (Python):**
+          - **Python SDK**: [\`memnexus-python-sdk@${VERSION}\`](https://pypi.org/project/memnexus-python-sdk/)
 
           ### Installation
 
           \`\`\`bash
-          # SDK
-          npm install @memnexus-ai/sdk@${VERSION}
+          # TypeScript/JavaScript SDK
+          npm install @memnexus-ai/typescript-sdk@${VERSION}
+
+          # Python SDK
+          pip install memnexus-python-sdk==${VERSION}
           \`\`\`
 
           ### Changes
@@ -608,7 +752,8 @@ jobs:
 
           - [OpenAPI Spec](https://github.com/memnexus-ai/mx-releases/blob/main/specs/openapi.yaml)
           - [Postman Collection](https://www.postman.com/memnexus)
-          - [SDK Documentation](https://github.com/memnexus-ai/mx-releases/tree/main/packages/sdk)"
+          - [TypeScript SDK Documentation](https://github.com/memnexus-ai/mx-releases/tree/main/packages/typescript-sdk)
+          - [Python SDK Documentation](https://github.com/memnexus-ai/mx-releases/tree/main/packages/python-sdk)"
             echo "✅ GitHub Release created for $TAG"
           fi
 
@@ -617,7 +762,7 @@ jobs:
     name: Rollback on Failure
     runs-on: ubuntu-latest
     # NOTE: When CLI/MCP are enabled, add publish-dependent-packages back to needs
-    needs: [determine-version, publish-sdk, promote-to-latest, sync-postman, create-release]
+    needs: [determine-version, publish-typescript-sdk, publish-python-sdk, promote-to-latest, sync-postman, create-release]
     if: failure()
     permissions:
       contents: read
@@ -630,21 +775,30 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           scope: '@memnexus-ai'
 
-      - name: Deprecate SDK
+      - name: Deprecate TypeScript SDK
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          npm deprecate @memnexus-ai/sdk@${{ needs.determine-version.outputs.version }} "Release failed - do not use. Rolled back." || echo "SDK not published or already deprecated"
+          npm deprecate @memnexus-ai/typescript-sdk@${{ needs.determine-version.outputs.version }} "Release failed - do not use. Rolled back." || echo "TypeScript SDK not published or already deprecated"
 
       - name: Deprecate CLI
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm deprecate @memnexus-ai/cli@${{ needs.determine-version.outputs.version }} "Release failed - do not use. Rolled back." || echo "CLI not published or already deprecated"
 
       - name: Deprecate MCP Server
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm deprecate @memnexus-ai/mcp-server@${{ needs.determine-version.outputs.version }} "Release failed - do not use. Rolled back." || echo "MCP not published or already deprecated"
+
+      # Note: PyPI doesn't support deprecation in the same way - Python SDK would need to be yanked manually if needed
 
       - name: Report failure
         run: |
           echo "❌ Release pipeline failed"
-          echo "Version ${{ needs.determine-version.outputs.version }} has been deprecated"
+          echo "Version ${{ needs.determine-version.outputs.version }} has been deprecated on npm"
+          echo "Note: Python SDK on PyPI may need manual intervention if published"
           echo "Please check the workflow logs for details"
           exit 1

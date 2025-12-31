@@ -11,10 +11,14 @@ generated:
   spec_version: 1.1.1
   last_updated: "2025-12-31T19:13:35Z"
   packages:
-    sdk:
-      package: "@memnexus-ai/sdk"
-      npm_url: https://www.npmjs.com/package/@memnexus-ai/sdk
+    typescript-sdk:
+      package: "@memnexus-ai/typescript-sdk"
+      npm_url: https://www.npmjs.com/package/@memnexus-ai/typescript-sdk
       description: "TypeScript SDK for programmatic API access"
+    python-sdk:
+      package: "memnexus-python-sdk"
+      pypi_url: https://pypi.org/project/memnexus-python-sdk/
+      description: "Python SDK for programmatic API access"
     cli:
       package: "@memnexus-ai/cli"
       npm_url: https://www.npmjs.com/package/@memnexus-ai/cli
