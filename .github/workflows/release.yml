@@ -418,12 +418,13 @@ jobs:
           POSTMAN_WORKSPACE_ID: ${{ secrets.POSTMAN_WORKSPACE_ID }}
           VERSION: ${{ needs.determine-version.outputs.version }}
         run: |
-          # Read OpenAPI spec content
+          # Read OpenAPI spec content for embedding in API
           SPEC_CONTENT=$(cat specs/openapi.yaml | jq -Rs .)
 
-          # Create API in Postman
+          # Create API in Postman with embedded schema (v10 API)
           response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/apis?workspace=${POSTMAN_WORKSPACE_ID}" \
             -H "X-Api-Key: ${POSTMAN_API_KEY}" \
+            -H "Accept: application/vnd.api.v10+json" \
             -H "Content-Type: application/json" \
             -d "{
               \"name\": \"MemNexus Core API v${VERSION}\",
@@ -435,7 +436,7 @@ jobs:
           body=$(echo "$response" | sed '$d')
 
           if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
-            API_ID=$(echo "$body" | jq -r '.api.id')
+            API_ID=$(echo "$body" | jq -r '.id')
             echo "api_id=${API_ID}" >> $GITHUB_OUTPUT
             echo "✅ Created Postman API: ${API_ID}"
           else
@@ -450,9 +451,10 @@ jobs:
           API_ID: ${{ steps.create-api.outputs.api_id }}
           VERSION: ${{ needs.determine-version.outputs.version }}
         run: |
-          # Create schema version
+          # Create schema version (v10 API)
           response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/apis/${API_ID}/versions" \
             -H "X-Api-Key: ${POSTMAN_API_KEY}" \
+            -H "Accept: application/vnd.api.v10+json" \
             -H "Content-Type: application/json" \
             -d "{\"name\": \"${VERSION}\"}")
 
@@ -460,13 +462,14 @@ jobs:
           body=$(echo "$response" | sed '$d')
 
           if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
-            VERSION_ID=$(echo "$body" | jq -r '.version.id')
+            VERSION_ID=$(echo "$body" | jq -r '.id')
             echo "✅ Created API version: ${VERSION_ID}"
 
-            # Add schema to version
+            # Add schema to version (v10 API)
             SPEC_CONTENT=$(cat specs/openapi.yaml)
             response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/apis/${API_ID}/versions/${VERSION_ID}/schemas" \
               -H "X-Api-Key: ${POSTMAN_API_KEY}" \
+              -H "Accept: application/vnd.api.v10+json" \
               -H "Content-Type: application/json" \
               -d "{
                 \"type\": \"openapi3\",
