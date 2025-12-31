@@ -418,18 +418,16 @@ jobs:
           POSTMAN_WORKSPACE_ID: ${{ secrets.POSTMAN_WORKSPACE_ID }}
           VERSION: ${{ needs.determine-version.outputs.version }}
         run: |
-          # Read OpenAPI spec content for embedding in API
-          SPEC_CONTENT=$(cat specs/openapi.yaml | jq -Rs .)
-
-          # Create API in Postman with embedded schema (v10 API)
-          response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/apis?workspace=${POSTMAN_WORKSPACE_ID}" \
+          # Create API in Postman (v10 API requires workspaceId in body)
+          response=$(curl -s -w "\n%{http_code}" -X POST "https://api.getpostman.com/apis" \
             -H "X-Api-Key: ${POSTMAN_API_KEY}" \
             -H "Accept: application/vnd.api.v10+json" \
             -H "Content-Type: application/json" \
             -d "{
               \"name\": \"MemNexus Core API v${VERSION}\",
               \"summary\": \"MemNexus Core API - Version ${VERSION}\",
-              \"description\": \"Released on $(date -u +%Y-%m-%d)\"
+              \"description\": \"Released on $(date -u +%Y-%m-%d)\",
+              \"workspaceId\": \"${POSTMAN_WORKSPACE_ID}\"
             }")
 
           http_code=$(echo "$response" | tail -n1)
