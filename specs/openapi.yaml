@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.1.1
+  version: 1.1.5
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
@@ -18,11 +18,36 @@ info:
   x-namespace: memnexus
   x-stability: stable
   x-audience: internal
-  x-generatedAt: '2025-12-30T16:45:32.268Z'
+  x-generatedAt: '2026-01-13T19:05:01.395Z'
   x-environment: development
 servers:
   - url: http://localhost:3000
     description: Development
+tags:
+  - name: Memories
+    description: Memory management and retrieval endpoints
+  - name: Conversations
+    description: Conversation tracking and analysis endpoints
+  - name: Topics
+    description: Topic detection, clustering, and management endpoints
+  - name: Communities
+    description: Topic community detection and management endpoints
+  - name: Patterns
+    description: Pattern detection and behavioral analysis endpoints
+  - name: Behavior
+    description: Behavioral pattern tracking and state management endpoints
+  - name: Artifacts
+    description: Artifact storage and retrieval endpoints
+  - name: Facts
+    description: Fact extraction and management endpoints
+  - name: API Keys
+    description: API key management endpoints
+  - name: GraphRAG
+    description: Graph-based retrieval augmented generation endpoints
+  - name: System
+    description: System health, monitoring, and configuration endpoints
+  - name: Health
+    description: Health check endpoints
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -2672,5 +2697,4 @@ paths:
                     type: integer
                   offset:
                     type: integer
-tags: []
 
