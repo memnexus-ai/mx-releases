@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.1.5
+  version: 1.1.6
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
@@ -18,7 +18,7 @@ info:
   x-namespace: memnexus
   x-stability: stable
   x-audience: internal
-  x-generatedAt: '2026-01-13T19:05:01.395Z'
+  x-generatedAt: '2026-01-15T15:36:33.972Z'
   x-environment: development
 servers:
   - url: http://localhost:3000
@@ -657,29 +657,133 @@ components:
           example: current
       required:
         - query
+    Entity:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Entity name
+          example: Python
+        type:
+          type: string
+          description: Entity type
+          example: technology
+    SearchResult:
+      type: object
+      properties:
+        memory:
+          allOf:
+            - $ref: '#/components/schemas/Memory'
+            - description: The memory object
+        score:
+          type: number
+          description: Relevance score for this result
+          example: 0.92
+        entities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entity'
+          description: Entities mentioned in this memory
+          example: []
+        topics:
+          type: array
+          items:
+            $ref: '#/components/schemas/Topic'
+          description: Topics associated with this memory
+          example: []
+      required:
+        - memory
+        - score
+        - entities
+        - topics
+    TemporalMetadata:
+      type: object
+      properties:
+        temporalMode:
+          type: string
+          description: Temporal query mode used
+          example: current
+        asOfTime:
+          type: string
+          nullable: true
+          format: date-time
+          description: Point-in-time timestamp
+          example: null
+        validAtTime:
+          type: string
+          nullable: true
+          format: date-time
+          description: Validity timestamp
+          example: null
+        eventTimeRange:
+          type: object
+          nullable: true
+          properties:
+            from:
+              type: string
+              nullable: true
+              format: date-time
+            to:
+              type: string
+              nullable: true
+              format: date-time
+          required:
+            - from
+            - to
+          description: Event time range filter
+          example: null
+        ingestionTimeRange:
+          type: object
+          nullable: true
+          properties:
+            from:
+              type: string
+              nullable: true
+              format: date-time
+            to:
+              type: string
+              nullable: true
+              format: date-time
+          required:
+            - from
+            - to
+          description: Ingestion time range filter
+          example: null
+        includeExpired:
+          type: boolean
+          description: Whether expired facts are included
+          example: false
+        temporalFieldsIncluded:
+          type: boolean
+          description: Whether temporal fields are included in results
+          example: true
+      required:
+        - temporalMode
+        - asOfTime
+        - validAtTime
+        - eventTimeRange
+        - ingestionTimeRange
+        - includeExpired
+        - temporalFieldsIncluded
+      description: Temporal query metadata
     SearchResponse:
       type: object
       properties:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/Memory'
-          description: Search results
-        count:
-          type: integer
-          minimum: 0
-          description: Total number of results
-          example: 5
-        metadata:
-          type: object
-          description: Search metadata
-          example:
-            mode: unified
-            executionTime: 125
+            $ref: '#/components/schemas/SearchResult'
+          description: Search results with metadata
+        pagination:
+          allOf:
+            - $ref: '#/components/schemas/Pagination'
+            - description: Pagination information
+        temporalMetadata:
+          $ref: '#/components/schemas/TemporalMetadata'
       required:
         - data
-        - count
-        - metadata
+        - pagination
+        - temporalMetadata
     Fact:
       type: object
       properties:
