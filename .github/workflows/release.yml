@@ -20,6 +20,12 @@ on:
         type: boolean
         default: false
 
+# Prevent race conditions: only one release workflow runs at a time per branch
+# If a new run starts while one is in progress, the new run will wait (not cancel)
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   NODE_VERSION: '20.x'
 
@@ -306,10 +312,30 @@ jobs:
           echo "✅ TypeScript SDK published to @next"
 
       - name: Verify TypeScript SDK published
+        # This step is intentionally non-fatal (continue-on-error: true)
+        # The publish step already succeeded - npm registry propagation delays
+        # should not trigger a rollback that deprecates the package
+        continue-on-error: true
         run: |
-          sleep 5  # Give npm registry time to propagate
-          npm view @memnexus-ai/typescript-sdk@${{ needs.determine-version.outputs.version }} version
-          echo "✅ TypeScript SDK verified on @next tag"
+          VERSION="${{ needs.determine-version.outputs.version }}"
+          echo "Waiting for npm registry to propagate version ${VERSION}..."
+
+          # Retry up to 6 times (30 seconds total) for npm registry propagation
+          for i in 1 2 3 4 5 6; do
+            echo "Attempt $i/6: Checking npm registry..."
+            if npm view @memnexus-ai/typescript-sdk@${VERSION} version 2>/dev/null; then
+              echo "✅ TypeScript SDK ${VERSION} verified on npm registry"
+              exit 0
+            fi
+            echo "Not found yet, waiting 5 seconds..."
+            sleep 5
+          done
+
+          echo "⚠️ Warning: Could not verify package on npm registry after 30 seconds"
+          echo "This is likely a propagation delay - the package was published successfully"
+          echo "Check manually: npm view @memnexus-ai/typescript-sdk@${VERSION}"
+          # Exit 0 to not fail the job - the publish step already succeeded
+          exit 0
 
   # Job 4b: Publish Python SDK to PyPI
   # NOTE: Disabled until PyPI publishing is configured
