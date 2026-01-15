@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [1.1.6] - 2026-01-15
+
+### Changed
+- Platform release 1.1.6
+- Generated packages (SDK, CLI, MCP Server) updated to 1.1.6
+- OpenAPI specification synced
+
 ## [1.1.5] - 2026-01-13
 
 ### Changed

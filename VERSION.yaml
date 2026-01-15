@@ -7,9 +7,9 @@ platform: 1.0.0  # Public-facing platform version
 # Generated packages - ALL share the same version (API contract version)
 # This version is embedded in the OpenAPI spec and used by SDK/CLI/MCP
 generated:
-  version: 1.1.5
-  spec_version: 1.1.5
-  last_updated: "2026-01-13T19:18:32Z"
+  version: 1.1.6
+  spec_version: 1.1.6
+  last_updated: "2026-01-15T15:48:24Z"
   packages:
     typescript-sdk:
       package: "@memnexus-ai/typescript-sdk"
