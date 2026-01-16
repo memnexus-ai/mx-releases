@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.1.6
+  version: 1.2.0
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
@@ -18,7 +18,7 @@ info:
   x-namespace: memnexus
   x-stability: stable
   x-audience: internal
-  x-generatedAt: '2026-01-15T15:36:33.972Z'
+  x-generatedAt: '2026-01-16T19:43:20.877Z'
   x-environment: development
 servers:
   - url: http://localhost:3000
@@ -594,8 +594,18 @@ components:
             - unified
             - content
             - facts
-          description: Search mode (defaults to unified)
+          description: Content filtering mode (defaults to unified)
           example: unified
+        searchMethod:
+          type: string
+          enum:
+            - keyword
+            - semantic
+            - hybrid
+          description: >-
+            Search algorithm: keyword (fulltext), semantic (vector), or hybrid
+            (combined). Defaults to keyword.
+          example: hybrid
         limit:
           type: integer
           minimum: 1
@@ -607,6 +617,34 @@ components:
           minimum: 0
           description: Offset for pagination (defaults to 0)
           example: 0
+        vectorWeight:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: >-
+            Weight for vector (semantic) results in hybrid search (0-1, defaults
+            to 0.7)
+          example: 0.7
+        fulltextWeight:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: >-
+            Weight for fulltext (keyword) results in hybrid search (0-1,
+            defaults to 0.3)
+          example: 0.3
+        threshold:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: >-
+            Minimum similarity threshold for semantic search (0-1, defaults to
+            0.5)
+          example: 0.5
+        explain:
+          type: boolean
+          description: If true, include detailed explanation of how each result was matched
+          example: false
         asOfTime:
           type: string
           format: date-time
@@ -691,13 +729,69 @@ components:
             $ref: '#/components/schemas/Topic'
           description: Topics associated with this memory
           example: []
+        searchMethod:
+          type: string
+          description: Search method used to find this result
+          example: hybrid
+        hybridScore:
+          type: number
+          description: Combined RRF score for hybrid search
+          example: 0.0164
+        vectorScore:
+          type: number
+          description: Vector similarity score (0-1)
+          example: 0.89
+        vectorRank:
+          type: integer
+          nullable: true
+          description: Rank in vector search results
+          example: 1
+        fulltextScore:
+          type: number
+          description: Fulltext search score
+          example: 2.5
+        fulltextRank:
+          type: integer
+          nullable: true
+          description: Rank in fulltext search results
+          example: 3
+        explanation:
+          type: object
+          properties:
+            matchReason:
+              type: string
+              description: Human-readable explanation of why this result matched
+              example: Matched via semantic similarity (89% similar to query)
+            matchedTerms:
+              type: array
+              items:
+                type: string
+              description: Terms from the query that matched (for keyword search)
+              example:
+                - machine
+                - learning
+            semanticSimilarity:
+              type: number
+              description: Cosine similarity score for semantic match (0-1)
+              example: 0.89
+            contributingFactors:
+              type: array
+              items:
+                type: string
+              description: Factors that contributed to the match
+              example:
+                - content match
+                - topic overlap
+                - entity mention
+          required:
+            - matchReason
+          description: Detailed explanation of the match (only when explain=true)
       required:
         - memory
         - score
-        - entities
-        - topics
     TemporalMetadata:
       type: object
+      nullable: true
       properties:
         temporalMode:
           type: string
@@ -765,7 +859,7 @@ components:
         - ingestionTimeRange
         - includeExpired
         - temporalFieldsIncluded
-      description: Temporal query metadata
+      description: Temporal query metadata (null for semantic/hybrid search)
     SearchResponse:
       type: object
       properties:
@@ -774,6 +868,10 @@ components:
           items:
             $ref: '#/components/schemas/SearchResult'
           description: Search results with metadata
+        searchMethod:
+          type: string
+          description: Search method used for this query
+          example: hybrid
         pagination:
           allOf:
             - $ref: '#/components/schemas/Pagination'
@@ -2008,9 +2106,21 @@ paths:
     post:
       summary: Search all memories
       operationId: searchMemories
-      description: >-
-        Search memories by content with different modes (unified, content,
-        facts)
+      description: >
+        Search memories using different search methods:
+
+        - **keyword** (default): Traditional fulltext search using Lucene
+
+        - **semantic**: Vector-based semantic search using OpenAI embeddings
+
+        - **hybrid**: Combines semantic and keyword search with Reciprocal Rank
+        Fusion
+
+
+        The `mode` parameter controls content filtering (unified, content,
+        facts).
+
+        The `searchMethod` parameter controls the search algorithm.
       tags:
         - Memories
       requestBody:
