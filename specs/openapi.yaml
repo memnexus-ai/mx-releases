@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.2.1
+  version: 1.2.2
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
@@ -18,7 +18,7 @@ info:
   x-namespace: memnexus
   x-stability: stable
   x-audience: internal
-  x-generatedAt: '2026-01-16T20:32:37.830Z'
+  x-generatedAt: '2026-01-16T22:02:35.759Z'
   x-environment: development
 servers:
   - url: http://localhost:3000
@@ -603,8 +603,8 @@ components:
             - semantic
             - hybrid
           description: >-
-            Search algorithm: keyword (fulltext), semantic (vector), or hybrid
-            (combined). Defaults to keyword.
+            Search algorithm: hybrid (combined, default), semantic (vector), or
+            keyword (fulltext).
           example: hybrid
         limit:
           type: integer
@@ -2109,12 +2109,12 @@ paths:
       description: >
         Search memories using different search methods:
 
-        - **keyword** (default): Traditional fulltext search using Lucene
+        - **hybrid** (default): Combines semantic and keyword search with
+        Reciprocal Rank Fusion
 
         - **semantic**: Vector-based semantic search using OpenAI embeddings
 
-        - **hybrid**: Combines semantic and keyword search with Reciprocal Rank
-        Fusion
+        - **keyword**: Traditional fulltext search using Lucene
 
 
         The `mode` parameter controls content filtering (unified, content,
