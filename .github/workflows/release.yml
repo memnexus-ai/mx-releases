@@ -525,11 +525,19 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           scope: '@memnexus-ai'
 
-      - name: Promote TypeScript SDK to @latest
+      - name: Un-deprecate and Promote TypeScript SDK to @latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          npm dist-tag add @memnexus-ai/typescript-sdk@${{ needs.publish-typescript-sdk.outputs.version }} latest
+          VERSION="${{ needs.publish-typescript-sdk.outputs.version }}"
+
+          # Un-deprecate the package first (in case it was marked deprecated by a previous failed run)
+          # An empty string removes the deprecation message
+          echo "Removing any deprecation notice from @memnexus-ai/typescript-sdk@${VERSION}..."
+          npm deprecate @memnexus-ai/typescript-sdk@${VERSION} "" || echo "No deprecation to remove"
+
+          # Promote to @latest tag
+          npm dist-tag add @memnexus-ai/typescript-sdk@${VERSION} latest
           echo "✅ TypeScript SDK promoted to @latest"
 
       # Note: Python SDK on PyPI doesn't have a similar tag system - latest is determined by version number
