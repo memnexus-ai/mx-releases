@@ -715,9 +715,23 @@ jobs:
 
       - name: Commit version updates
         run: |
+          # Pull any changes that may have been pushed by concurrent workflows
+          git pull --rebase origin main || true
+
           git add VERSION.yaml CHANGELOG.md
           git commit -m "chore(release): version ${{ needs.determine-version.outputs.version }}"
-          git push origin main
+
+          # Retry push with rebase if it fails due to concurrent changes
+          for i in 1 2 3; do
+            if git push origin main; then
+              echo "✅ Pushed version updates successfully"
+              break
+            else
+              echo "Push failed, attempt $i/3 - rebasing and retrying..."
+              git pull --rebase origin main
+              sleep 2
+            fi
+          done
 
       - name: Create git tags
         run: |
