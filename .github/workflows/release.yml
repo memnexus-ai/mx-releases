@@ -20,10 +20,12 @@ on:
         type: boolean
         default: false
 
-# Prevent race conditions: only one release workflow runs at a time per branch
-# If a new run starts while one is in progress, the new run will wait (not cancel)
+# Prevent race conditions: ensure only one workflow commits to main at a time
+# This concurrency group is SHARED with mx-api-gateway/sync-and-release.yaml
+# to prevent the sync workflow from pushing while release is running (and vice versa)
+# See: https://github.com/memnexus-ai/mx-releases/issues/4
 concurrency:
-  group: release-${{ github.ref }}
+  group: mx-releases-commits
   cancel-in-progress: false
 
 env:
@@ -723,23 +725,51 @@ jobs:
 
       - name: Commit version updates
         run: |
-          # Pull any changes that may have been pushed by concurrent workflows
-          git pull --rebase origin main || true
+          # Improved git handling to prevent race condition conflicts
+          # See: https://github.com/memnexus-ai/mx-releases/issues/4
+
+          # Stash any uncommitted changes before pulling
+          git stash push -m "temp-release-stash" --include-untracked || true
+
+          # Pull latest changes from main
+          git pull --rebase origin main || {
+            echo "⚠️ Rebase failed, aborting and retrying..."
+            git rebase --abort || true
+            git pull origin main --no-rebase || true
+          }
+
+          # Restore stashed changes
+          git stash pop || true
 
           git add VERSION.yaml CHANGELOG.md
-          git commit -m "chore(release): version ${{ needs.determine-version.outputs.version }}"
 
-          # Retry push with rebase if it fails due to concurrent changes
-          for i in 1 2 3; do
+          # Check if there are changes to commit
+          if git diff --cached --quiet; then
+            echo "ℹ️ No changes to commit (version already updated)"
+          else
+            git commit -m "chore(release): version ${{ needs.determine-version.outputs.version }}"
+          fi
+
+          # Retry push with exponential backoff
+          for i in 1 2 3 4 5; do
             if git push origin main; then
               echo "✅ Pushed version updates successfully"
-              break
+              exit 0
             else
-              echo "Push failed, attempt $i/3 - rebasing and retrying..."
-              git pull --rebase origin main
-              sleep 2
+              echo "Push failed, attempt $i/5 - rebasing and retrying..."
+              git pull --rebase origin main || {
+                echo "⚠️ Rebase failed, aborting..."
+                git rebase --abort || true
+                git pull origin main --no-rebase || true
+              }
+              sleep $((i * 2))
             fi
           done
+
+          echo "❌ Failed to push after 5 attempts"
+          echo "This is likely due to concurrent workflow commits"
+          echo "The packages have been published successfully - manual intervention may be needed for VERSION.yaml"
+          exit 1
 
       - name: Create git tags
         run: |
@@ -811,13 +841,21 @@ jobs:
           fi
 
   # Job 10: Rollback on failure - deprecate published packages
+  # IMPORTANT: Only rollback if publish or promote steps failed, NOT if later steps
+  # like sync-postman or create-release failed (the packages are still functional)
+  # See: https://github.com/memnexus-ai/mx-releases/issues/4
   rollback-on-failure:
     name: Rollback on Failure
     runs-on: ubuntu-latest
     # NOTE: When CLI/MCP are enabled, add publish-dependent-packages back to needs
     # NOTE: When PyPI is configured, add publish-python-sdk back to needs
     needs: [determine-version, publish-typescript-sdk, promote-to-latest, sync-postman, create-release]
-    if: failure()
+    # Only deprecate packages if the publish or promote steps actually failed
+    # If sync-postman or create-release failed, the packages are still functional
+    if: |
+      failure() &&
+      (needs.publish-typescript-sdk.result == 'failure' ||
+       needs.promote-to-latest.result == 'failure')
     permissions:
       contents: read
       id-token: write
