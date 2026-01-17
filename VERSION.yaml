@@ -9,7 +9,11 @@ platform: 1.0.0  # Public-facing platform version
 generated:
   version: 1.4.1
   spec_version: 1.4.1
+<<<<<<< Updated upstream
   last_updated: "2026-01-17T18:56:40Z"
+=======
+  last_updated: "2026-01-17T18:58:50Z"
+>>>>>>> Stashed changes
   packages:
     typescript-sdk:
       package: "@memnexus-ai/typescript-sdk"
