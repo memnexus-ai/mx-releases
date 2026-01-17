@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.2.3
+  version: 1.2.4
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
@@ -18,7 +18,7 @@ info:
   x-namespace: memnexus
   x-stability: stable
   x-audience: internal
-  x-generatedAt: '2026-01-16T23:46:44.032Z'
+  x-generatedAt: '2026-01-17T01:38:46.879Z'
   x-environment: development
 servers:
   - url: http://localhost:3000
