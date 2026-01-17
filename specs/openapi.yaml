@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.2.5
+  version: 1.4.0
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
@@ -18,7 +18,7 @@ info:
   x-namespace: memnexus
   x-stability: stable
   x-audience: internal
-  x-generatedAt: '2026-01-17T03:10:49.756Z'
+  x-generatedAt: '2026-01-17T15:53:56.387Z'
   x-environment: development
 servers:
   - url: http://localhost:3000
@@ -726,6 +726,28 @@ components:
             Temporal query mode: 'current' (only valid now), 'historical' (as of
             a point in time), 'evolution' (chronological)
           example: current
+        topics:
+          type: array
+          items:
+            type: string
+          description: >-
+            Filter by topics - returns memories that have ANY of the specified
+            topics
+          example:
+            - typescript
+            - api-design
+        memoryType:
+          type: string
+          enum:
+            - episodic
+            - semantic
+            - procedural
+          description: Filter by memory type
+          example: episodic
+        conversationId:
+          type: string
+          description: Filter by conversation ID
+          example: conv_abc123
       required:
         - query
     Entity:
