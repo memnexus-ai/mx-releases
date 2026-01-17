@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.2.4
+  version: 1.2.5
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
@@ -18,7 +18,7 @@ info:
   x-namespace: memnexus
   x-stability: stable
   x-audience: internal
-  x-generatedAt: '2026-01-17T01:38:46.879Z'
+  x-generatedAt: '2026-01-17T03:10:49.756Z'
   x-environment: development
 servers:
   - url: http://localhost:3000
@@ -285,6 +285,39 @@ components:
       description: >-
         Response from creating a memory, includes the memory and
         session/conversation metadata
+    RelatedMemoryResult:
+      type: object
+      properties:
+        memory:
+          allOf:
+            - $ref: '#/components/schemas/Memory'
+            - description: The related memory object
+        score:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: >-
+            Relevance score (0-1). For similar: semantic similarity. For
+            related: topic overlap ratio. For conversation: position score.
+          example: 0.87
+        relationship:
+          type: string
+          description: >-
+            Type of relationship: similar, similar-by-topic, conversation, or
+            topic
+          example: similar
+        sharedTopics:
+          type: array
+          items:
+            type: string
+          description: Topics shared with the source memory (only for topic relationship)
+          example:
+            - typescript
+            - validation
+      required:
+        - memory
+        - score
+        - relationship
     GraphRAGQueryRequest:
       type: object
       properties:
@@ -2140,6 +2173,172 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/memories/{id}/similar:
+    get:
+      summary: Find similar memories
+      operationId: getSimilarMemories
+      description: >
+        Find memories that are semantically similar to the given memory.
+
+
+        Uses vector similarity search if embeddings are available for the
+        memory.
+
+        Falls back to topic-based similarity if embeddings are not available.
+
+
+        The `relationship` field in results indicates the method used:
+
+        - `similar` - Found via vector/semantic similarity
+
+        - `similar-by-topic` - Fallback using shared topics
+      tags:
+        - Memories
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The source memory ID
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 5
+            minimum: 1
+            maximum: 50
+          description: Maximum number of similar memories to return
+      responses:
+        '200':
+          description: Similar memories found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RelatedMemoryResult'
+                  sourceMemory:
+                    $ref: '#/components/schemas/Memory'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/memories/{id}/conversation-memories:
+    get:
+      summary: Find memories from same conversation
+      operationId: getConversationMemories
+      description: >
+        Find other memories that belong to the same conversation as the given
+        memory.
+
+
+        Returns memories sorted chronologically (oldest first) to show the
+        conversation flow.
+
+        If the memory doesn't belong to a conversation, returns an empty array.
+      tags:
+        - Memories
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The source memory ID
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Maximum number of conversation memories to return
+      responses:
+        '200':
+          description: Conversation memories found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RelatedMemoryResult'
+                  sourceMemory:
+                    $ref: '#/components/schemas/Memory'
+                  conversationId:
+                    type: string
+                    nullable: true
+                    description: The conversation ID (null if memory has no conversation)
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/memories/{id}/related:
+    get:
+      summary: Find related memories by topics
+      operationId: getRelatedMemories
+      description: |
+        Find memories that share topics with the given memory.
+
+        The score indicates the ratio of shared topics (1.0 = all topics match).
+        Results are sorted by score (most related first), then by timestamp.
+
+        If the source memory has no topics, returns an empty array.
+      tags:
+        - Memories
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The source memory ID
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+          description: Maximum number of related memories to return
+      responses:
+        '200':
+          description: Related memories found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/RelatedMemoryResult'
+                        - type: object
+                          properties:
+                            sharedTopics:
+                              type: array
+                              items:
+                                type: string
+                              description: Topics shared between source and this memory
+                  sourceMemory:
+                    $ref: '#/components/schemas/Memory'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /api/openapi.json:
