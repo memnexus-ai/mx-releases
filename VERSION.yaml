@@ -9,7 +9,7 @@ platform: 1.0.0  # Public-facing platform version
 generated:
   version: 1.4.0
   spec_version: 1.4.0
-  last_updated: "2026-01-17T16:02:04Z"
+  last_updated: "2026-01-17T18:16:30Z"
   packages:
     typescript-sdk:
       package: "@memnexus-ai/typescript-sdk"
