@@ -7,26 +7,26 @@ platform: 1.0.0  # Public-facing platform version
 # Generated packages - ALL share the same version (API contract version)
 # This version is embedded in the OpenAPI spec and used by SDK/CLI/MCP
 generated:
-  version: 1.6.0
-  spec_version: 1.6.0
+  version: 1.6.1
+  spec_version: 1.6.1
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
-  last_updated: "2026-01-18T00:02:04Z"
+  last_updated: "2026-01-18T02:23:58Z"
 =======
-  last_updated: "2026-01-18T00:02:04Z"
+  last_updated: "2026-01-18T02:23:58Z"
 =======
-  last_updated: "2026-01-18T00:02:04Z"
+  last_updated: "2026-01-18T02:23:58Z"
 =======
-  last_updated: "2026-01-18T00:02:04Z"
+  last_updated: "2026-01-18T02:23:58Z"
 =======
-  last_updated: "2026-01-18T00:03:57Z"
+  last_updated: "2026-01-18T02:23:58Z"
 =======
-  last_updated: "2026-01-18T00:03:57Z"
+  last_updated: "2026-01-18T02:23:58Z"
 =======
-  last_updated: "2026-01-18T00:03:57Z"
+  last_updated: "2026-01-18T02:23:58Z"
 =======
-  last_updated: "2026-01-18T00:03:57Z"
+  last_updated: "2026-01-18T02:23:58Z"
 >>>>>>> Stashed changes
 >>>>>>> Stashed changes
 >>>>>>> Stashed changes
