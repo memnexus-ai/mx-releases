@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.7.3
+  version: 1.8.0
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
@@ -18,7 +18,7 @@ info:
   x-namespace: memnexus
   x-stability: stable
   x-audience: internal
-  x-generatedAt: '2026-01-20T18:37:44.168Z'
+  x-generatedAt: '2026-01-20T19:35:01.194Z'
   x-environment: development
 servers:
   - url: http://localhost:3000
@@ -1640,6 +1640,32 @@ paths:
                 properties:
                   data:
                     $ref: '#/components/schemas/Conversation'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete conversation
+      operationId: deleteConversation
+      description: Delete a conversation and soft-delete all associated memories
+      tags:
+        - Conversations
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema:
+            type: string
+          description: The conversation ID
+      responses:
+        '204':
+          description: Conversation deleted successfully
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
