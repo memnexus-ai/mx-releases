@@ -7,76 +7,76 @@ platform: 1.0.0  # Public-facing platform version
 # Generated packages - ALL share the same version (API contract version)
 # This version is embedded in the OpenAPI spec and used by SDK/CLI/MCP
 generated:
-  version: 1.6.2
-  spec_version: 1.6.2
+  version: 1.7.0
+  spec_version: 1.7.0
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:41:31Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 =======
-  last_updated: "2026-01-20T01:43:47Z"
+  last_updated: "2026-01-20T02:50:56Z"
 >>>>>>> Stashed changes
 >>>>>>> Stashed changes
 >>>>>>> Stashed changes
