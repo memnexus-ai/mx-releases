@@ -7,43 +7,43 @@ platform: 1.0.0  # Public-facing platform version
 # Generated packages - ALL share the same version (API contract version)
 # This version is embedded in the OpenAPI spec and used by SDK/CLI/MCP
 generated:
-  version: 1.6.1
-  spec_version: 1.6.1
+  version: 1.6.2
+  spec_version: 1.6.2
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
-  last_updated: "2026-01-18T02:23:58Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:23:58Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:23:58Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:23:58Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:23:58Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:23:58Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:23:58Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:23:58Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:26:16Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:26:16Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:26:16Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:26:16Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:26:16Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:26:16Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:26:16Z"
+  last_updated: "2026-01-20T01:41:31Z"
 =======
-  last_updated: "2026-01-18T02:26:16Z"
+  last_updated: "2026-01-20T01:41:31Z"
 >>>>>>> Stashed changes
 >>>>>>> Stashed changes
 >>>>>>> Stashed changes
