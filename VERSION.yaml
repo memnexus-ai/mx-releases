@@ -7,141 +7,141 @@ platform: 1.0.0  # Public-facing platform version
 # Generated packages - ALL share the same version (API contract version)
 # This version is embedded in the OpenAPI spec and used by SDK/CLI/MCP
 generated:
-  version: 1.7.0
-  spec_version: 1.7.0
+  version: 1.7.2
+  spec_version: 1.7.2
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:50:56Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 =======
-  last_updated: "2026-01-20T02:53:15Z"
+  last_updated: "2026-01-20T17:30:04Z"
 >>>>>>> Stashed changes
 >>>>>>> Stashed changes
 >>>>>>> Stashed changes
