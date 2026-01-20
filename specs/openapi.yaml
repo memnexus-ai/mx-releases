@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.6.1
+  version: 1.6.2
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
@@ -18,7 +18,7 @@ info:
   x-namespace: memnexus
   x-stability: stable
   x-audience: internal
-  x-generatedAt: '2026-01-18T02:15:40.927Z'
+  x-generatedAt: '2026-01-20T01:33:31.370Z'
   x-environment: development
 servers:
   - url: http://localhost:3000
@@ -1290,7 +1290,19 @@ paths:
         - API Keys
       responses:
         '200':
-          description: OK
+          description: User information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      userId:
+                        type: string
+                      authMethod:
+                        type: string
   /api/apikeys:
     get:
       summary: List API keys
@@ -1918,7 +1930,15 @@ paths:
           description: The query ID to explain
       responses:
         '200':
-          description: OK
+          description: Query explanation retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    description: Query explanation details
   /api/graphrag/query-communities:
     post:
       summary: Query communities
@@ -1941,7 +1961,17 @@ paths:
                   type: integer
       responses:
         '200':
-          description: OK
+          description: Community query results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      description: Community search result
   /api/graphrag/query:
     post:
       summary: Execute a GraphRAG query
@@ -2482,7 +2512,18 @@ paths:
                   type: string
       responses:
         '200':
-          description: OK
+          description: Patterns compiled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Pattern'
+                  count:
+                    type: integer
   /api/patterns/detect:
     post:
       summary: Detect behavioral patterns
@@ -2526,6 +2567,29 @@ paths:
       responses:
         '200':
           description: Patterns detected successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      detectedPatterns:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Pattern'
+                      count:
+                        type: integer
+                      stored:
+                        type: integer
+                      confidence:
+                        type: object
+                        properties:
+                          average:
+                            type: number
+                          highest:
+                            type: number
         '422':
           description: Validation error
   /api/patterns/analyze:
@@ -2560,6 +2624,36 @@ paths:
       responses:
         '200':
           description: Analysis completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      analysis:
+                        type: object
+                        properties:
+                          totalPatterns:
+                            type: integer
+                          recentPatterns:
+                            type: integer
+                          trends:
+                            type: object
+                          insights:
+                            type: array
+                            items:
+                              type: string
+                          recommendations:
+                            type: array
+                            items:
+                              type: string
+                      timeRange:
+                        type: integer
+                      analyzedAt:
+                        type: string
+                        format: date-time
   /api/patterns/{id}:
     patch:
       summary: Update pattern
@@ -2591,7 +2685,14 @@ paths:
                   type: object
       responses:
         '200':
-          description: OK
+          description: Pattern updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Pattern'
   /api/patterns/feedback:
     post:
       summary: Record pattern feedback
@@ -2615,7 +2716,14 @@ paths:
                   type: string
       responses:
         '200':
-          description: OK
+          description: Feedback recorded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Pattern'
   /api/patterns/behavior/state:
     get:
       summary: Get behavioral state
@@ -2625,7 +2733,15 @@ paths:
         - Behavior
       responses:
         '200':
-          description: OK
+          description: Behavioral state retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    description: Behavioral state object
     post:
       summary: Update behavioral state
       operationId: updateBehavioralState
@@ -2644,7 +2760,15 @@ paths:
                   type: object
       responses:
         '200':
-          description: OK
+          description: Behavioral state updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    description: Updated behavioral state object
   /api/system/health:
     get:
       summary: Get system health status
@@ -2656,7 +2780,24 @@ paths:
         - System
       responses:
         '200':
-          description: OK
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum:
+                          - healthy
+                          - unhealthy
+                      database:
+                        type: object
+                      uptime:
+                        type: number
         '503':
           description: Service Unavailable
   /api/system/context/status:
@@ -2668,7 +2809,15 @@ paths:
         - System
       responses:
         '200':
-          description: OK
+          description: Context status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    description: Database statistics and context information
   /api/system/feature-flags:
     get:
       summary: Get feature flags
@@ -2678,7 +2827,17 @@ paths:
         - System
       responses:
         '200':
-          description: OK
+          description: Feature flags retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    additionalProperties:
+                      type: boolean
+                    description: Map of feature flag names to their values
   /api/system/feature-flags/evaluate:
     post:
       summary: Evaluate feature flag
@@ -2701,7 +2860,19 @@ paths:
                   type: object
       responses:
         '200':
-          description: OK
+          description: Feature flag evaluation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      flagName:
+                        type: string
   /api/system/memory/quality:
     get:
       summary: Analyze memory quality distribution
@@ -2904,7 +3075,14 @@ paths:
                   type: string
       responses:
         '200':
-          description: OK
+          description: Topics merged successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Topic'
   /api/topics/discover-related:
     post:
       summary: Discover related topics
@@ -2928,7 +3106,16 @@ paths:
                   default: 10
       responses:
         '200':
-          description: OK
+          description: Related topics discovered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Topic'
   /api/topics/similarity:
     post:
       summary: Calculate topic similarity
@@ -2952,7 +3139,19 @@ paths:
                   type: string
       responses:
         '200':
-          description: OK
+          description: Similarity calculated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      similarity:
+                        type: number
+                        minimum: 0
+                        maximum: 1
   /api/topics/similar:
     post:
       summary: Find similar topics
@@ -2979,7 +3178,21 @@ paths:
                   default: 10
       responses:
         '200':
-          description: OK
+          description: Similar topics found successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        topic:
+                          $ref: '#/components/schemas/Topic'
+                        similarity:
+                          type: number
   /api/topics/cluster:
     post:
       summary: Cluster topics
@@ -2998,7 +3211,21 @@ paths:
                   default: 2
       responses:
         '200':
-          description: OK
+          description: Topics clustered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      clusters:
+                        type: array
+                        items:
+                          type: object
+                      clusterCount:
+                        type: integer
   /api/topics/detect-communities:
     post:
       summary: Detect communities
@@ -3017,7 +3244,21 @@ paths:
                   default: louvain
       responses:
         '200':
-          description: OK
+          description: Communities detected successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      communities:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Community'
+                      communityCount:
+                        type: integer
   /api/topics/communities:
     get:
       summary: List communities
