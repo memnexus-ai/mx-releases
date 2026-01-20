@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.7.2
+  version: 1.7.3
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
@@ -18,7 +18,7 @@ info:
   x-namespace: memnexus
   x-stability: stable
   x-audience: internal
-  x-generatedAt: '2026-01-20T17:20:41.771Z'
+  x-generatedAt: '2026-01-20T18:37:44.168Z'
   x-environment: development
 servers:
   - url: http://localhost:3000
@@ -769,6 +769,26 @@ components:
           type: string
           description: Entity type
           example: technology
+    TopicReference:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Topic unique identifier
+          example: 4fbdd5bd-a789-4281-8882-a3e02394411f
+        name:
+          type: string
+          description: Topic name
+          example: Machine Learning
+        createdAt:
+          type: string
+          format: date-time
+          description: When the topic was created
+          example: '2026-01-18T02:23:03.218Z'
+      required:
+        - id
+        - name
     SearchResult:
       type: object
       properties:
@@ -789,7 +809,7 @@ components:
         topics:
           type: array
           items:
-            $ref: '#/components/schemas/Topic'
+            $ref: '#/components/schemas/TopicReference'
           description: Topics associated with this memory
           example: []
         searchMethod:
