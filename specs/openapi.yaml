@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.10.1
+  version: 1.10.2
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
@@ -2160,10 +2160,34 @@ paths:
     get:
       summary: List memories
       operationId: listMemories
-      description: List all memories for the authenticated user with pagination
+      description: >
+        List all memories for the authenticated user with pagination.
+
+
+        **ID Prefix Search:**
+
+        Use the `idPrefix` parameter for git-style short ID lookup. This enables
+        efficient
+
+        server-side filtering instead of fetching all memories and filtering
+        client-side.
+
+        - Minimum 6 characters required for `idPrefix`
+
+        - Returns matching memories directly (no need for secondary fetch)
+
+        - Example: `?idPrefix=2d09116a` finds memories starting with that prefix
       tags:
         - Memories
       parameters:
+        - in: query
+          name: idPrefix
+          schema:
+            type: string
+            minLength: 6
+          description: >-
+            Filter memories by ID prefix (git-style short ID lookup). Minimum 6
+            characters.
         - in: query
           name: limit
           schema:
