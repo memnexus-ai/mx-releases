@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.9.1
+  version: 1.10.0
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
@@ -18,7 +18,7 @@ info:
   x-namespace: memnexus
   x-stability: stable
   x-audience: internal
-  x-generatedAt: '2026-01-21T18:33:29.631Z'
+  x-generatedAt: '2026-01-22T03:04:01.379Z'
   x-environment: development
 servers:
   - url: http://localhost:3000
@@ -756,6 +756,18 @@ components:
           type: string
           description: Filter by conversation ID
           example: conv_abc123
+        includeTopics:
+          type: boolean
+          description: >-
+            Include topics associated with matched memories (defaults to false
+            for performance)
+          example: false
+        includeEntities:
+          type: boolean
+          description: >-
+            Include entities mentioned in matched memories (defaults to false
+            for performance)
+          example: false
       required:
         - query
     Entity:
