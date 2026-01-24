@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MemNexus Core API
-  version: 1.10.2
+  version: 1.11.0
   description: Core API service for MemNexus - single service boundary for all data access
   contact:
     name: MemNexus Team
@@ -2284,6 +2284,215 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
   /api/memories/search:
+    get:
+      summary: Search memories (GET)
+      operationId: searchMemoriesGet
+      description: >
+        Search memories using query parameters. Provides the same functionality
+        as
+
+        POST /api/memories/search but accepts parameters via query string.
+
+
+        **Benefits of GET:**
+
+        - Faster response times (~3x improvement)
+
+        - Browser/CDN caching support
+
+        - Simpler integration for read-only clients
+
+
+        **Search Methods:**
+
+        - **hybrid** (default): Combines semantic and keyword search with
+        Reciprocal Rank Fusion
+
+        - **semantic**: Vector-based semantic search using OpenAI embeddings
+
+        - **keyword**: Traditional fulltext search using Lucene
+
+
+        **Array Parameters:**
+
+        - `topics`: Provide as comma-separated values (e.g.,
+        `topics=typescript,api-design`)
+      tags:
+        - Memories
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: Search query string
+        - in: query
+          name: searchMethod
+          schema:
+            type: string
+            enum:
+              - keyword
+              - semantic
+              - hybrid
+            default: hybrid
+          description: Search algorithm to use
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Maximum number of results to return
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of results to skip for pagination
+        - in: query
+          name: threshold
+          schema:
+            type: number
+            minimum: 0
+            maximum: 1
+            default: 0.5
+          description: Minimum similarity threshold for semantic search
+        - in: query
+          name: mode
+          schema:
+            type: string
+            enum:
+              - unified
+              - content
+              - facts
+            default: unified
+          description: Content filtering mode
+        - in: query
+          name: vectorWeight
+          schema:
+            type: number
+            minimum: 0
+            maximum: 1
+            default: 0.7
+          description: Weight for vector similarity in hybrid search
+        - in: query
+          name: fulltextWeight
+          schema:
+            type: number
+            minimum: 0
+            maximum: 1
+            default: 0.3
+          description: Weight for fulltext matching in hybrid search
+        - in: query
+          name: topics
+          schema:
+            type: string
+          description: Comma-separated list of topics to filter by
+        - in: query
+          name: memoryType
+          schema:
+            type: string
+            enum:
+              - episodic
+              - semantic
+              - procedural
+          description: Filter by memory type
+        - in: query
+          name: conversationId
+          schema:
+            type: string
+          description: Filter by conversation ID
+        - in: query
+          name: explain
+          schema:
+            type: boolean
+            default: false
+          description: Include detailed match explanations in results
+        - in: query
+          name: includeTopics
+          schema:
+            type: boolean
+            default: false
+          description: Include associated topics in results
+        - in: query
+          name: includeEntities
+          schema:
+            type: boolean
+            default: false
+          description: Include mentioned entities in results
+        - in: query
+          name: asOfTime
+          schema:
+            type: string
+            format: date-time
+          description: Point-in-time query (ISO 8601 datetime)
+        - in: query
+          name: validAtTime
+          schema:
+            type: string
+            format: date-time
+          description: Filter by validity time (ISO 8601 datetime)
+        - in: query
+          name: eventTimeFrom
+          schema:
+            type: string
+            format: date-time
+          description: Event time range start (ISO 8601 datetime)
+        - in: query
+          name: eventTimeTo
+          schema:
+            type: string
+            format: date-time
+          description: Event time range end (ISO 8601 datetime)
+        - in: query
+          name: ingestionTimeFrom
+          schema:
+            type: string
+            format: date-time
+          description: Ingestion time range start (ISO 8601 datetime)
+        - in: query
+          name: ingestionTimeTo
+          schema:
+            type: string
+            format: date-time
+          description: Ingestion time range end (ISO 8601 datetime)
+        - in: query
+          name: includeExpired
+          schema:
+            type: boolean
+            default: false
+          description: Include expired memories in results
+        - in: query
+          name: temporalMode
+          schema:
+            type: string
+            enum:
+              - current
+              - historical
+              - evolution
+          description: Temporal query mode
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          description: Missing required query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     post:
       summary: Search all memories
       operationId: searchMemories
